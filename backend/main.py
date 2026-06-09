@@ -2,6 +2,17 @@ from __future__ import annotations
 
 import os
 import warnings
+from pathlib import Path
+
+# Load .env from backend/ directory if it exists (for local dev)
+_env_path = Path(__file__).resolve().parent / ".env"
+if _env_path.exists():
+    with open(_env_path) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                os.environ.setdefault(_k.strip(), _v.strip())
 
 # Suppress Pydantic v2 protected namespace warnings for fields like model_path, model_file
 # in schemas and FastAPI endpoint parameters before any modules are imported.
@@ -13,7 +24,7 @@ from fastapi.staticfiles import StaticFiles  # noqa: E402
 from fastapi.responses import FileResponse  # noqa: E402
 
 from models.db import Base, engine  # noqa: E402
-from routers import audit, bias, fixes, monitoring, pipeline, sandbox, project  # noqa: E402
+from routers import audit, bias, colab, datasets, fixes, gemini_narrative, monitoring, pipeline, sandbox, project  # noqa: E402
 
 app = FastAPI(title="Unbiased AI Decision Platform")
 
@@ -42,6 +53,9 @@ app.include_router(fixes.router, prefix="/api")
 app.include_router(sandbox.router, prefix="/api")
 app.include_router(monitoring.router, prefix="/api")
 app.include_router(pipeline.router, prefix="/api")
+app.include_router(datasets.router, prefix="/api")
+app.include_router(colab.router, prefix="/api")
+app.include_router(gemini_narrative.router, prefix="/api")
 
 @app.on_event("startup")
 def startup_seed() -> None:

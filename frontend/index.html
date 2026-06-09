@@ -3,11 +3,70 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="BIAS LAB | AI Fairness & Integrity Platform" />
+    <meta name="description" content="BIAS LAB — Enterprise AI Fairness & Integrity Platform. Audit, explain, and mitigate bias in your machine learning models." />
+    <meta name="theme-color" content="#0F1115" />
+
+    <!-- Open Graph / Social Sharing -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="BIAS LAB | AI Fairness & Integrity Platform" />
+    <meta property="og:description" content="Enterprise-grade AI fairness assurance. Audit, explain, and mitigate bias in your ML models with automated compliance reporting." />
+    <meta property="og:url" content="https://biaslab.dev" />
+    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="BIAS LAB | AI Fairness & Integrity Platform" />
+    <meta name="twitter:description" content="Enterprise-grade AI fairness assurance. Audit, explain, and mitigate bias in your ML models." />
+    <meta name="twitter:image" content="/twitter-image.png" />
+
+    <!-- Favicons & App Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="icon" type="image/png" href="/logo.png" />
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Josefin+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+    <!-- Schema.org JSON-LD — Google Rich Results -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "BIAS LAB",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "description": "Enterprise AI fairness and integrity platform. Audit, explain, and mitigate bias in machine learning models.",
+      "url": "https://biaslab.dev",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+    </script>
+
+    <!-- Google tag (gtag.js) — Set VITE_GA_MEASUREMENT_ID in .env to enable -->
+    <script>
+      (function() {
+        var id = "__GA_DISABLED__";
+        try { id = import.meta.env.VITE_GA_MEASUREMENT_ID; } catch(e) {}
+        if (id && id.length > 4 && id.indexOf("GA") > -1) {
+          var s = document.createElement('script');
+          s.async = true;
+          s.src = 'https://www.googletagmanager.com/gtag/js?id=' + id;
+          document.head.appendChild(s);
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', id);
+        }
+      })();
+    </script>
+
     <title>BIAS LAB | AI Fairness Suite</title>
   </head>
   <body>

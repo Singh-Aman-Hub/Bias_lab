@@ -1,3 +1,14 @@
+"""
+DEPRECATED: Use real datasets instead via `backend/data_prep.py`.
+
+This module generates synthetic data with engineered bias patterns.
+It is kept for reference but superseded by real datasets:
+  - UCI Adult Income (48k rows) — data/adult_income.csv
+  - COMPAS Recidivism (7k rows) — data/compas_prepared.csv
+
+Run `python backend/data_prep.py` to download real datasets.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path

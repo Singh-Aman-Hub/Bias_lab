@@ -1,18 +1,35 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
-import { ArrowRight, LayoutGrid } from 'lucide-react';
+import { api } from '../../api/client';
+import { ArrowRight, Database, LayoutGrid } from 'lucide-react';
+
+interface DemoDataset {
+  name: string;
+  display_name: string;
+  description: string;
+  available: boolean;
+  rows: number;
+}
 
 export default function Step1Upload() {
   const { 
-    file, setFile, 
+    file, setFile, setSensitiveCols, setTargetCol, setDomain,
     projectId, projects, advanceStep 
   } = useAppContext();
 
   const [headers, setHeaders] = useState<string[]>([]);
   const [rowCount, setRowCount] = useState<number>(0);
   const [status] = useState('');
+  const [demoDatasets, setDemoDatasets] = useState<DemoDataset[]>([]);
+  const [loadingDemo, setLoadingDemo] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    api.get('/datasets').then(res => {
+      setDemoDatasets(res.data.datasets.filter((d: DemoDataset) => d.available));
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (file && headers.length === 0) {
@@ -80,6 +97,56 @@ export default function Step1Upload() {
             )}
             {status && <p className="helper" style={{ marginTop: 8 }}>{status}</p>}
           </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <Database size={18} style={{ color: 'var(--accent)' }} />
+          <h3 className="section-title" style={{ margin: 0 }}>Quick-Start with Real Data</h3>
+        </div>
+        <p className="helper" style={{ marginBottom: 16 }}>
+          Load a built-in benchmark dataset to demo the platform immediately.
+        </p>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          {demoDatasets.map(ds => (
+            <button
+              key={ds.name}
+              className="btn btn-secondary"
+              disabled={loadingDemo}
+              onClick={async () => {
+                setLoadingDemo(true);
+                try {
+                  const res = await fetch(`/api/datasets/download/${ds.name}`);
+                  const csv = await res.text();
+                  const blob = new Blob([csv], { type: 'text/csv' });
+                  const f = new File([blob], `${ds.name}.csv`, { type: 'text/csv' });
+                  setFile(f);
+                  const lines = csv.trim().split(/\r?\n/);
+                  setRowCount(Math.max(lines.length - 1, 0));
+                  setHeaders(lines[0]?.split(',') ?? []);
+
+                  const targetCol = res.headers.get('X-Dataset-Target-Col') || '';
+                  const sensitiveCols = (res.headers.get('X-Dataset-Sensitive-Cols') || '').split(',').filter(Boolean);
+                  const domain = res.headers.get('X-Dataset-Domain') || 'general';
+
+                  setTargetCol(targetCol);
+                  setSensitiveCols(sensitiveCols);
+                  setDomain(domain);
+                } catch (e) {
+                  console.error('Failed to load demo dataset', e);
+                } finally {
+                  setLoadingDemo(false);
+                }
+              }}
+              style={{ flex: 1, minWidth: 200, textAlign: 'left', padding: 16 }}
+            >
+              <strong>{ds.display_name}</strong>
+              <p className="helper" style={{ margin: '4px 0 0' }}>
+                {ds.rows.toLocaleString()} rows &middot; {ds.description.slice(0, 80)}...
+              </p>
+            </button>
+          ))}
         </div>
       </div>
 

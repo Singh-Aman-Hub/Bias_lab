@@ -1,0 +1,19 @@
+User-agent: *
+Allow: /
+Sitemap: https://biaslab.dev/sitemap.xml
+
+# Allow AI crawlers for citation
+User-agent: GPTBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Google-Extended
+Allow: /

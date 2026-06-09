@@ -2,7 +2,9 @@ import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import WorkflowShell from './components/WorkflowShell';
 import PageTransition from './components/animations/PageTransition';
+import AnalysisLoading from './components/animations/AnalysisLoading';
 import BackgroundGrid from './components/animations/BackgroundGrid';
+import ErrorBoundary from './components/ErrorBoundary';
 import { useAppContext } from './context/AppContext';
 import { useEffect, useRef } from 'react';
 
@@ -37,7 +39,7 @@ export default function App() {
   }, [projectId, projects, location.pathname]);
 
   return (
-    <>
+    <ErrorBoundary>
       {location.pathname !== '/' && <BackgroundGrid />}
       <Routes location={location} key={location.pathname === '/' ? 'root' : 'app'}>
         <Route path="/" element={
@@ -46,7 +48,7 @@ export default function App() {
         
         <Route path="/*" element={
           <WorkflowShell>
-            <Suspense fallback={<div className="card" style={{ padding: 40, textAlign: 'center' }}><p className="helper">Loading...</p></div>}>
+            <Suspense fallback={<AnalysisLoading />}>
               <Routes location={location} key={location.pathname}>
                 <Route path="/dashboard" element={<PageTransition locationKey="dash"><Dashboard /></PageTransition>} />
                 
@@ -65,6 +67,6 @@ export default function App() {
           </WorkflowShell>
         } />
       </Routes>
-    </>
+    </ErrorBoundary>
   );
 }
