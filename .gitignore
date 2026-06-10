@@ -65,3 +65,6 @@ data/
 # Reports & design docs (board, presentation docs, tracking)
 presentation/
 *.html
+
+# Graphify generated output (regenerate with `graphify update .`)
+graphify-out/

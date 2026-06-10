@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useScroll } from '@react-three/drei';
 import * as THREE from 'three';
 
-const MAX_PARTICLES = 3000;
+const MAX_PARTICLES = 1200;
 
 export default function ExperienceScene() {
   const scroll = useScroll();
@@ -36,12 +36,12 @@ export default function ExperienceScene() {
   }, []);
 
   const tmpColor = useMemo(() => new THREE.Color(), []);
-  const trustCopper = useMemo(() => new THREE.Color('#D4A373'), []);
-  const warningRed = useMemo(() => new THREE.Color('#BC4749'), []);
-  const neutralA = useMemo(() => new THREE.Color('#F1F1F1'), []);
-  const neutralB = useMemo(() => new THREE.Color('#8E9196'), []);
+  const trustCopper = useMemo(() => new THREE.Color('#34D6C4'), []);
+  const warningRed = useMemo(() => new THREE.Color('#F0565B'), []);
+  const neutralA = useMemo(() => new THREE.Color('#E8ECF3'), []);
+  const neutralB = useMemo(() => new THREE.Color('#8A93A3'), []);
 
-  const particleCount = isMobile ? 1800 : MAX_PARTICLES;
+  const particleCount = isMobile ? 600 : MAX_PARTICLES;
 
   const { chaoticPositions, clusterPositions, torusPositions, biasedMask, baseColors } = useMemo(() => {
     const chaotic = new Float32Array(particleCount * 3);
@@ -178,8 +178,8 @@ export default function ExperienceScene() {
   return (
     <group ref={sceneRef}>
       <ambientLight intensity={0.75} />
-      <pointLight position={[6, 5, 8]} intensity={2.2} color="#F1F1F1" />
-      <pointLight position={[-7, -5, -7]} intensity={1.3} color="#D4A373" />
+      <pointLight position={[6, 5, 8]} intensity={2.2} color="#E8ECF3" />
+      <pointLight position={[-7, -5, -7]} intensity={1.3} color="#34D6C4" />
 
       <points ref={pointsRef}>
         <bufferGeometry>

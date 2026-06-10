@@ -47,19 +47,19 @@ const ForensicBento = () => {
       icon: Layers,
       title: 'Deep Neural Layer Mapping',
       desc: 'Trace decision paths through 12+ hidden layers to pinpoint exactly where bias propagates.',
-      color: '#D4A373',
+      color: '#34D6C4',
     },
     {
       icon: Gauge,
       title: 'Real-time Rebalancing Logic',
       desc: 'Adaptive threshold tuning with <50ms latency preserves accuracy while eliminating disparity.',
-      color: '#8E9196',
+      color: '#8A93A3',
     },
     {
       icon: Shield,
       title: 'Regulatory Compliance',
       desc: 'EU AI Act & GDPR ready. Automated audit trails and documentation for every decision.',
-      color: '#BC4749',
+      color: '#F0565B',
     },
   ];
 

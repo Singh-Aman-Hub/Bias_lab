@@ -130,15 +130,11 @@ export default function HiddenBiasExplorer({ subgroups = mockSubgroups }: Hidden
       {worstSubgroup && (
         <motion.div 
           initial={{ opacity: 0, y: -10 }}
-          animate={{ 
-            opacity: 1, 
-            y: 0,
-            boxShadow: ['0 0 0px rgba(239, 68, 68, 0)', '0 0 20px rgba(239, 68, 68, 0.15)', '0 0 0px rgba(239, 68, 68, 0)']
-          }}
-          transition={{ duration: 0.5, boxShadow: { duration: 2.5, repeat: Infinity } }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
           style={{ 
-            backgroundColor: 'rgba(188, 71, 73, 0.12)', 
-            border: '0.5px solid rgba(188, 71, 73, 0.5)', 
+            backgroundColor: 'rgba(240, 86, 91, 0.12)', 
+            border: '0.5px solid rgba(240, 86, 91, 0.5)', 
             borderRadius: '8px', 
             padding: '20px',
             marginBottom: '24px',
@@ -175,8 +171,8 @@ export default function HiddenBiasExplorer({ subgroups = mockSubgroups }: Hidden
                 style={{
                   padding: '4px 12px',
                   borderRadius: '16px',
-                  border: `0.5px solid ${selectedAttributes.includes(attr) ? 'rgba(212,163,115,0.72)' : 'var(--border)'}`,
-                  backgroundColor: selectedAttributes.includes(attr) ? 'rgba(212,163,115,0.12)' : 'rgba(255,255,255,0.02)',
+                  border: `0.5px solid ${selectedAttributes.includes(attr) ? 'rgba(52, 214, 196,0.72)' : 'var(--border)'}`,
+                  backgroundColor: selectedAttributes.includes(attr) ? 'rgba(52, 214, 196,0.12)' : 'rgba(255,255,255,0.02)',
                   color: selectedAttributes.includes(attr) ? 'var(--accent)' : 'var(--text-secondary)',
                   fontSize: '0.85rem',
                   cursor: 'pointer',
@@ -247,7 +243,7 @@ export default function HiddenBiasExplorer({ subgroups = mockSubgroups }: Hidden
                               width: '24px', 
                               height: '24px', 
                               borderRadius: '50%', 
-                              backgroundColor: idx === 0 ? 'rgba(188, 71, 73, 0.16)' : 'rgba(255,255,255,0.04)',
+                              backgroundColor: idx === 0 ? 'rgba(240, 86, 91, 0.16)' : 'rgba(255,255,255,0.04)',
                               color: idx === 0 ? 'var(--warning)' : 'var(--text-secondary)',
                               fontSize: '0.8rem',
                               fontWeight: 700

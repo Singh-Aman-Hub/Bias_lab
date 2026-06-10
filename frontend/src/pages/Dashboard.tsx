@@ -42,7 +42,7 @@ export default function Dashboard() {
                  Select Project Above
                </button>
              )}
-             <button className="btn" style={{ padding: '14px 30px' }} onClick={() => window.open('https://github.com', '_blank')}>
+             <button className="btn" style={{ padding: '14px 30px' }} onClick={() => window.open('https://github.com/Ganesh-0509/Bias-Lab', '_blank', 'noopener,noreferrer')}>
                View Documentation
              </button>
            </div>
@@ -55,12 +55,12 @@ export default function Dashboard() {
                <p className="helper" style={{ fontSize: '0.9rem', lineHeight: 1.6 }}>Scan datasets for representation gaps and latent proxy variables that distort decision logic.</p>
             </div>
             <div className="card" style={{ padding: 32, textAlign: 'left' }}>
-               <div className="workflow-brand-badge" style={{ marginBottom: 20, width: 48, height: 48, background: 'rgba(185, 140, 98, 0.1)', color: 'var(--yellow)', borderColor: 'rgba(185, 140, 98, 0.2)' }}><Zap size={24} /></div>
+               <div className="workflow-brand-badge" style={{ marginBottom: 20, width: 48, height: 48, background: 'rgba(242, 169, 59, 0.1)', color: 'var(--yellow)', borderColor: 'rgba(242, 169, 59, 0.2)' }}><Zap size={24} /></div>
                <h3 style={{ fontSize: '1.1rem', marginBottom: 12 }}>Contrastive Analysis</h3>
                <p className="helper" style={{ fontSize: '0.9rem', lineHeight: 1.6 }}>Apply counterfactual tests to verify individual fairness by flipping sensitive attributes in real-time.</p>
             </div>
             <div className="card" style={{ padding: 32, textAlign: 'left' }}>
-               <div className="workflow-brand-badge" style={{ marginBottom: 20, width: 48, height: 48, background: 'rgba(34, 197, 94, 0.1)', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.2)' }}><Activity size={24} /></div>
+               <div className="workflow-brand-badge" style={{ marginBottom: 20, width: 48, height: 48, background: 'rgba(53, 201, 138, 0.1)', color: '#35C98A', borderColor: 'rgba(53, 201, 138, 0.2)' }}><Activity size={24} /></div>
                <h3 style={{ fontSize: '1.1rem', marginBottom: 12 }}>Live Guardianship</h3>
                <p className="helper" style={{ fontSize: '0.9rem', lineHeight: 1.6 }}>Monitor production streams for drift and degradation, ensuring your model remains ethical at scale.</p>
             </div>
@@ -85,15 +85,15 @@ export default function Dashboard() {
   ];
 
   const getScoreColor = (score: number) => {
-    if (score < 50) return '#ef4444';
-    if (score < 75) return '#f59e0b';
-    return '#10b981';
+    if (score < 50) return '#F0565B';
+    if (score < 75) return '#F2A93B';
+    return '#35C98A';
   };
 
   const decisionConfig = {
-    'HIGH RISK': { color: '#ef4444', icon: ShieldAlert, bg: 'rgba(239, 68, 68, 0.1)' },
-    'MODERATE RISK': { color: '#f59e0b', icon: AlertTriangle, bg: 'rgba(245, 158, 11, 0.1)' },
-    'LOW RISK': { color: '#10b981', icon: CheckCircle2, bg: 'rgba(16, 185, 129, 0.1)' },
+    'HIGH RISK': { color: '#F0565B', icon: ShieldAlert, bg: 'rgba(240, 86, 91, 0.1)' },
+    'MODERATE RISK': { color: '#F2A93B', icon: AlertTriangle, bg: 'rgba(242, 169, 59, 0.1)' },
+    'LOW RISK': { color: '#35C98A', icon: CheckCircle2, bg: 'rgba(53, 201, 138, 0.1)' },
   };
 
   const config = decisionConfig[decision as keyof typeof decisionConfig] || decisionConfig['MODERATE RISK'];
@@ -119,7 +119,7 @@ export default function Dashboard() {
       {/* Primary Intelligence Section */}
       <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 24, marginBottom: 32 }}>
         {/* Big Circular Score */}
-        <div className="card" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'rgba(212, 163, 115, 0.03)' }}>
+        <div className="card" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'rgba(52, 214, 196, 0.03)' }}>
           <div className="stat-label" style={{ marginBottom: 20, letterSpacing: 2 }}>Unified Score</div>
           <div style={{ position: 'relative', display: 'inline-block', margin: '0 auto' }}>
             <svg width="190" height="190" viewBox="0 0 100 100">
@@ -137,8 +137,8 @@ export default function Dashboard() {
               position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
               textAlign: 'center'
             }}>
-              <div style={{ fontSize: '3.6rem', fontWeight: 900, color: '#fff', lineHeight: 1 }}>{Math.round(fairness_score)}</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 1 }}>Forensic Index</div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '3.4rem', fontWeight: 600, color: '#fff', lineHeight: 1, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>{Math.round(fairness_score)}</div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.62rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.15em', marginTop: 4 }}>Forensic Index</div>
             </div>
           </div>
           <p className="helper" style={{ marginTop: 24, fontSize: '0.8rem', padding: '0 12px' }}>Aggregate score across all 8 forensic stages.</p>
@@ -161,7 +161,7 @@ export default function Dashboard() {
             ].map((m, i) => (
               <div key={i} className="card-inset" onClick={() => navigate(m.to)} style={{ cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <m.icon size={16} style={{ color: 'var(--text-secondary)', marginBottom: 12, margin: '0 auto', opacity: 0.6 }} />
-                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: getScoreColor(m.score), marginBottom: 4 }}>{m.score}</div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '1.4rem', fontWeight: 600, color: getScoreColor(m.score), marginBottom: 4, fontVariantNumeric: 'tabular-nums' }}>{m.score}</div>
                 <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>{m.label}</div>
               </div>
             ))}
@@ -257,9 +257,9 @@ export default function Dashboard() {
               return (
                 <div key={i} className="card-inset" style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
                   <div style={{ 
-                    width: 32, height: 32, borderRadius: '50%', background: 'rgba(212, 163, 115, 0.1)',
+                    width: 32, height: 32, borderRadius: '50%', background: 'rgba(52, 214, 196, 0.1)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: 'var(--accent)', flexShrink: 0,
-                    fontWeight: 800, border: '1px solid rgba(212, 163, 115, 0.2)'
+                    fontWeight: 800, border: '1px solid rgba(52, 214, 196, 0.2)'
                   }}>
                     {i + 1}
                   </div>

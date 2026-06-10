@@ -76,6 +76,7 @@ function AnalysisLoadingScreen({ error, onRetry }: { error: string | null; onRet
 export default function Step2Config() {
   const {
     file,
+    modelFile, setModelFile,
     sensitiveCols, setSensitiveCols,
     targetCol, setTargetCol,
     domain, setDomain,
@@ -168,7 +169,7 @@ export default function Step2Config() {
     <div>
       <div className="page-header">
         <div>
-          <div className="kicker">Step 2 of 8</div>
+          <div className="kicker">Step 2 of 9</div>
           <h1 className="page-title">Configuration</h1>
           <p className="page-subtitle">Select the sensitive attributes and define how the model should be accessed.</p>
         </div>
@@ -188,13 +189,13 @@ export default function Step2Config() {
                 display: 'flex', 
                 alignItems: 'center', 
                 gap: 6, 
-                background: 'rgba(212,163,115,0.15)', 
+                background: 'rgba(52, 214, 196,0.15)', 
                 color: 'var(--accent)', 
                 padding: '4px 10px', 
                 borderRadius: '16px',
                 fontSize: '0.85rem',
                 fontWeight: 600,
-                border: '1px solid rgba(212,163,115,0.3)'
+                border: '1px solid rgba(52, 214, 196,0.3)'
               }}>
                 {col}
                 <button 
@@ -287,7 +288,7 @@ export default function Step2Config() {
                 borderRadius: '8px',
                 border: '1px solid var(--border)',
                 cursor: 'pointer',
-                background: metricPriority === p.id ? 'rgba(212,163,115,0.08)' : 'transparent',
+                background: metricPriority === p.id ? 'rgba(52, 214, 196,0.08)' : 'transparent',
                 borderColor: metricPriority === p.id ? 'var(--accent)' : 'var(--border)'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -367,10 +368,29 @@ export default function Step2Config() {
         <div className="card" style={{ marginTop: 16 }}>
           <div className="section-title">Model upload (Optional)</div>
           <div className="helper">Upload a .pkl or .joblib file. If skipped, we will train a default RF model automatically.</div>
-          <input id="model-upload" className="input" type="file" accept=".pkl,.joblib" style={{ display: 'none' }} />
+          <input
+            id="model-upload"
+            className="input"
+            type="file"
+            accept=".pkl,.joblib"
+            style={{ display: 'none' }}
+            onChange={(e) => setModelFile(e.target.files?.[0] ?? null)}
+          />
           <label htmlFor="model-upload" className="btn btn-secondary" style={{ marginTop: 12, cursor: 'pointer' }}>
             Browse Files
           </label>
+          {modelFile && (
+            <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="helper" style={{ color: 'var(--accent)' }}>Using model: {modelFile.name}</span>
+              <button
+                className="btn"
+                style={{ padding: '2px 10px', fontSize: '0.8rem' }}
+                onClick={() => setModelFile(null)}
+              >
+                Remove
+              </button>
+            </div>
+          )}
         </div>
       )}
 

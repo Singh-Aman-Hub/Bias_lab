@@ -1,9 +1,8 @@
 import { lazy, Suspense } from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import WorkflowShell from './components/WorkflowShell';
 import PageTransition from './components/animations/PageTransition';
 import AnalysisLoading from './components/animations/AnalysisLoading';
-import BackgroundGrid from './components/animations/BackgroundGrid';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useAppContext } from './context/AppContext';
 import { useEffect, useRef } from 'react';
@@ -16,12 +15,15 @@ const Step5Explanations = lazy(() => import('./pages/workflow/Step5Explanations'
 const Step6Counterfactual = lazy(() => import('./pages/workflow/Step6Counterfactual'));
 const Step7StressTest = lazy(() => import('./pages/workflow/Step7StressTest'));
 const Step8Sandbox = lazy(() => import('./pages/workflow/Step8Sandbox'));
+const Step9Monitoring = lazy(() => import('./pages/workflow/Step9Monitoring'));
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const MonitoringDashboard = lazy(() => import('./pages/MonitoringDashboard'));
 const HeroPage = lazy(() => import('./pages/HeroPage'));
 
 export default function App() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { projectId, projects } = useAppContext();
   const hasResumed = useRef(false);
 
@@ -30,17 +32,19 @@ export default function App() {
       const p = projects.find(proj => String(proj.id) === String(projectId));
       if (p && p.max_step > 1) {
         if (location.pathname === '/' || location.pathname.startsWith('/workflow')) {
-          const resumeStep = Math.min(p.max_step, 8);
-          hasResumed.current = true;
-          window.location.href = `/workflow/step-${resumeStep}`;
+          const resumeStep = Math.min(p.max_step, 9);
+          const targetPath = `/workflow/step-${resumeStep}`;
+          if (location.pathname !== targetPath) {
+            hasResumed.current = true;
+            navigate(targetPath, { replace: true });
+          }
         }
       }
     }
-  }, [projectId, projects, location.pathname]);
+  }, [projectId, projects, location.pathname, navigate]);
 
   return (
     <ErrorBoundary>
-      {location.pathname !== '/' && <BackgroundGrid />}
       <Routes location={location} key={location.pathname === '/' ? 'root' : 'app'}>
         <Route path="/" element={
           <Suspense fallback={null}><PageTransition locationKey="hero"><HeroPage /></PageTransition></Suspense>
@@ -60,6 +64,8 @@ export default function App() {
                 <Route path="/workflow/step-6" element={<PageTransition locationKey="s6"><Step6Counterfactual /></PageTransition>} />
                 <Route path="/workflow/step-7" element={<PageTransition locationKey="s7"><Step7StressTest /></PageTransition>} />
                 <Route path="/workflow/step-8" element={<PageTransition locationKey="s8"><Step8Sandbox /></PageTransition>} />
+                <Route path="/workflow/step-9" element={<PageTransition locationKey="s9"><Step9Monitoring /></PageTransition>} />
+                <Route path="/monitoring" element={<PageTransition locationKey="mon"><MonitoringDashboard /></PageTransition>} />
                 
                 <Route path="*" element={<Navigate to="/workflow/step-1" replace />} />
               </Routes>

@@ -61,7 +61,7 @@ export default function Step1Upload() {
     <div>
       <div className="page-header">
         <div>
-          <div className="kicker">Step 1 of 8</div>
+          <div className="kicker">Step 1 of 9</div>
           <h1 className="page-title">Upload Dataset {projectId ? `for ${projects.find(p => String(p.id) === String(projectId))?.name}` : ''}</h1>
           {!projectId && (
             <div className="banner yellow" style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -90,7 +90,7 @@ export default function Step1Upload() {
               Browse Files
             </label>
             {file && (
-              <div style={{ marginTop: 16, padding: 12, background: 'rgba(212, 163, 115, 0.1)', borderRadius: 8 }}>
+              <div style={{ marginTop: 16, padding: 12, background: 'rgba(52, 214, 196, 0.1)', borderRadius: 8 }}>
                 <strong style={{ color: 'var(--accent)' }}>Loaded {file.name}</strong>
                 <p className="helper" style={{ margin: '4px 0 0' }}>Detected {rowCount.toLocaleString()} rows and {headers.length} columns.</p>
               </div>

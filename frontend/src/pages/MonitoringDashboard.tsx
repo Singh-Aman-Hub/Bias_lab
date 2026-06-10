@@ -70,7 +70,7 @@ export default function MonitoringDashboard() {
           <div style={{ display: 'flex', gap: 12 }}>
              <div style={{ 
                padding: '10px 24px', borderRadius: 100, border: `1px solid ${currentScore > 75 ? 'var(--green)' : 'var(--red)'}`,
-               background: currentScore > 75 ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+               background: currentScore > 75 ? 'rgba(53, 201, 138, 0.1)' : 'rgba(240, 86, 91, 0.1)',
                color: currentScore > 75 ? 'var(--green)' : 'var(--red)', fontWeight: 800, letterSpacing: 1
              }}>
                 SCORE: {currentScore.toFixed(1)}
@@ -95,7 +95,7 @@ export default function MonitoringDashboard() {
           </div>
           <div className="card" style={{ textAlign: 'center' }}>
              <div className="stat-label">Alert Count</div>
-             <div style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: 8, color: alerts.length > 0 ? '#ef4444' : 'var(--green)' }}>
+             <div style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: 8, color: alerts.length > 0 ? '#F0565B' : 'var(--green)' }}>
                 {alerts.length}
              </div>
           </div>
@@ -153,7 +153,7 @@ export default function MonitoringDashboard() {
                       <span className="pill green" style={{ fontSize: '0.7rem' }}>NOMINAL</span>
                    </div>
                    <div className="card-inset" style={{ textAlign: 'center', padding: '24px 16px' }}>
-                      <ShieldAlert size={24} style={{ color: trend === 'DOWN' ? '#ef4444' : 'var(--green)', marginBottom: 12, margin: '0 auto' }} />
+                      <ShieldAlert size={24} style={{ color: trend === 'DOWN' ? '#F0565B' : 'var(--green)', marginBottom: 12, margin: '0 auto' }} />
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>Fairness</div>
                       <span className={`pill ${trend === 'DOWN' ? 'red' : 'green'}`} style={{ fontSize: '0.7rem' }}>
                         {trend === 'DOWN' ? 'AT RISK' : 'STABLE'}
@@ -168,7 +168,7 @@ export default function MonitoringDashboard() {
                 <div className="stack stack-sm">
                    <div className="card-inset" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontWeight: 600 }}>Gender Distribution</span>
-                      <span style={{ color: '#ef4444', fontWeight: 800 }}>32% shift</span>
+                      <span style={{ color: '#F0565B', fontWeight: 800 }}>32% shift</span>
                    </div>
                    <div className="card-inset" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontWeight: 600 }}>Applicant Income</span>
@@ -189,9 +189,9 @@ export default function MonitoringDashboard() {
              </div>
              <div className="stack stack-sm" style={{ flex: 1, maxHeight: 420, overflowY: 'auto', marginTop: 24 }}>
                 {alerts.length > 0 ? alerts.map(a => (
-                   <div key={a.id} className="card-inset" style={{ borderLeft: `4px solid ${a.severity === 'HIGH' ? '#ef4444' : 'var(--yellow)'}` }}>
+                   <div key={a.id} className="card-inset" style={{ borderLeft: `4px solid ${a.severity === 'HIGH' ? '#F0565B' : 'var(--yellow)'}` }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                         <span style={{ fontSize: '0.75rem', fontWeight: 900, color: a.severity === 'HIGH' ? '#ef4444' : 'var(--yellow)', letterSpacing: 1 }}>{a.type}</span>
+                         <span style={{ fontSize: '0.75rem', fontWeight: 900, color: a.severity === 'HIGH' ? '#F0565B' : 'var(--yellow)', letterSpacing: 1 }}>{a.type}</span>
                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{new Date(a.timestamp).toLocaleDateString()}</span>
                       </div>
                       <div style={{ fontSize: '0.9rem', color: '#fff', lineHeight: 1.4 }}>{a.message}</div>

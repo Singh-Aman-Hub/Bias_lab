@@ -17,6 +17,7 @@ import type {
 
 interface AppState {
   file: File | null;
+  modelFile: File | null;
   sensitiveCols: string[];
   targetCol: string;
   domain: string;
@@ -44,6 +45,7 @@ interface AppState {
 
 interface AppContextType extends AppState {
   setFile: (val: File | null) => void;
+  setModelFile: (val: File | null) => void;
   setSensitiveCols: (val: string[]) => void;
   setTargetCol: (val: string) => void;
   setDomain: (val: string) => void;
@@ -79,6 +81,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [file, setFile] = useState<File | null>(null);
+  const [modelFile, setModelFile] = useState<File | null>(null);
   const [sensitiveCols, setSensitiveCols] = useState<string[]>([]);
   const [targetCol, setTargetCol] = useState('');
   const [domain, setDomain] = useState('loan');
@@ -120,6 +123,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       fd.append('project_id', projectId ?? '0');
       fd.append('metric_priority', metricPriority);
       fd.append('domain', domain);
+      // Pass an uploaded custom model so the pipeline uses it instead of the built-in RF
+      if (modelFile) fd.append('custom_model_file', modelFile);
 
       // Kick off background task — increased timeout to 60s
       const kickoff = await formApi.post('/pipeline/run-all', fd, { timeout: 60000 });
@@ -340,10 +345,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // 2. Persist projectId when it changes
+  // 2. Validate projectId still exists after projects load
+  React.useEffect(() => {
+    if (projects.length > 0 && projectId) {
+      const exists = projects.some(p => String(p.id) === String(projectId));
+      if (!exists) {
+        setProjectId(null);
+        localStorage.removeItem('active_project_id');
+      }
+    }
+  }, [projects, projectId]);
+
+  // 3. Persist projectId when it changes
   React.useEffect(() => {
     if (projectId) {
       localStorage.setItem('active_project_id', projectId);
+    } else {
+      localStorage.removeItem('active_project_id');
     }
   }, [projectId]);
 
@@ -374,14 +392,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const maxStep = Math.min(
     currentProject?.max_step
       ?? parseInt(localStorage.getItem(`max_step_${projectId}`) ?? '1', 10),
-    8
+    9
   );
 
   React.useEffect(() => { refreshProjects(); }, []);
 
   return (
     <AppContext.Provider value={{
-      file, setFile, sensitiveCols, setSensitiveCols, targetCol, setTargetCol, domain, setDomain, projectId, setProjectId,
+      file, setFile, modelFile, setModelFile, sensitiveCols, setSensitiveCols, targetCol, setTargetCol, domain, setDomain, projectId, setProjectId,
       modelType, setModelType, apiUrl, setApiUrl, requestFormat, setRequestFormat,
       metricPriority, setMetricPriority,
       auditResult, setAuditResult, proxyResult, setProxyResult, biasResult, setBiasResult,

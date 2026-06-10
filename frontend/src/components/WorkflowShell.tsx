@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
+  Activity,
   BarChart3,
   BrainCircuit,
   FlaskConical,
@@ -22,6 +23,7 @@ const STEPS = [
   { id: 6, to: '/workflow/step-6', label: 'Counterfactual', icon: ShieldCheck },
   { id: 7, to: '/workflow/step-7', label: 'Stress Test', icon: Gauge },
   { id: 8, to: '/workflow/step-8', label: 'Sandbox', icon: FlaskConical },
+  { id: 9, to: '/workflow/step-9', label: 'Monitor', icon: Activity },
 ];
 
 export default function WorkflowShell({ children }: { children: React.ReactNode }) {
@@ -46,6 +48,7 @@ export default function WorkflowShell({ children }: { children: React.ReactNode 
           to="/dashboard"
           className={`workflow-rail-item ${location.pathname === '/dashboard' ? 'active' : ''}`}
           aria-label="Open dashboard"
+          aria-current={location.pathname === '/dashboard' ? 'page' : undefined}
           title="Open dashboard"
         >
           <LayoutDashboard size={17} strokeWidth={1.75} />
@@ -66,6 +69,8 @@ export default function WorkflowShell({ children }: { children: React.ReactNode 
                 to={isLocked ? '#' : step.to}
                 className={`workflow-rail-item ${isActive ? 'active' : ''} ${isLocked ? 'locked' : ''}`}
                 aria-label={`Step ${step.id}: ${step.label}`}
+                aria-current={isActive ? 'page' : undefined}
+                aria-disabled={isLocked || undefined}
                 title={isLocked ? `Complete previous steps to unlock: ${step.label}` : `Step ${step.id}: ${step.label}`}
                 style={{ 
                   opacity: isLocked ? 0.3 : 1,

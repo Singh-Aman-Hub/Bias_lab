@@ -17,7 +17,7 @@ export default function Step6Counterfactual() {
       <div>
         <div className="page-header">
           <div>
-            <div className="kicker">Step 6 of 8</div>
+            <div className="kicker">Step 6 of 9</div>
             <h1 className="page-title">Counterfactual Testing</h1>
           </div>
         </div>
@@ -43,7 +43,7 @@ export default function Step6Counterfactual() {
     <div>
       <div className="page-header">
         <div>
-          <div className="kicker">Step 6 of 8</div>
+          <div className="kicker">Step 6 of 9</div>
           <h1 className="page-title">Counterfactual Testing</h1>
           <p className="helper" style={{ marginTop: 8 }}>
             Analyze if individual predictions flip when modifying only the sensitive attribute. This ensures the model isn't using the sensitive attribute as a proxy.
@@ -113,7 +113,7 @@ export default function Step6Counterfactual() {
                 {(counterfactualResult.sample_flips as unknown as Array<{ record_id: number; original_decision: string; flipped_decision: string; original_value: string; flipped_value: string }>).map((flip, i: number) => {
                   const isFlipped = flip.original_decision !== flip.flipped_decision;
                   return (
-                    <tr key={i} style={{ borderBottom: '0.5px solid var(--border)', backgroundColor: isFlipped ? 'rgba(188, 71, 73, 0.14)' : 'transparent' }}>
+                    <tr key={i} style={{ borderBottom: '0.5px solid var(--border)', backgroundColor: isFlipped ? 'rgba(240, 86, 91, 0.14)' : 'transparent' }}>
                       <td style={{ padding: '12px 8px', fontWeight: 500 }}>{flip.record_id}</td>
                       <td style={{ padding: '12px 8px' }}>
                         <span className="pill muted">{flip.original_decision}</span>

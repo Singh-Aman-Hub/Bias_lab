@@ -28,7 +28,7 @@ export default function AnalysisLoading() {
             position: 'absolute',
             inset: 0,
             borderRadius: '50%',
-            border: '2px solid rgba(212, 163, 115, 0.15)',
+            border: '2px solid rgba(52, 214, 196, 0.15)',
             borderTopColor: 'var(--accent)',
           }}
           animate={{ rotate: 360 }}
@@ -39,7 +39,7 @@ export default function AnalysisLoading() {
             position: 'absolute',
             inset: 8,
             borderRadius: '50%',
-            border: '2px solid rgba(212, 163, 115, 0.1)',
+            border: '2px solid rgba(52, 214, 196, 0.1)',
             borderBottomColor: 'var(--accent)',
           }}
           animate={{ rotate: -360 }}

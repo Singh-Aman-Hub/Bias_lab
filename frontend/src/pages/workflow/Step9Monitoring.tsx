@@ -59,7 +59,7 @@ const S: Record<string, React.CSSProperties> = {
   tlLine: { position:'relative', paddingLeft:28, marginLeft:14, borderLeft:'1px solid var(--border)' },
   tlNode: { position:'absolute', left:-37, top:0, width:24, height:24, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 0 0 4px var(--bg)' },
   tlContent: { cursor:'pointer', padding:'10px 14px', borderRadius:12, border:'1px solid transparent', transition:'all 0.2s' },
-  tlContentSel: { backgroundColor:'rgba(79,142,247,0.06)', border:'1px solid rgba(79,142,247,0.2)' },
+  tlContentSel: { backgroundColor:'rgba(52, 214, 196,0.06)', border:'1px solid rgba(52, 214, 196,0.2)' },
   tlTitle: { fontWeight:600, color:'#f0f4ff', fontSize:'0.92rem' },
   tlDate: { fontSize:'0.78rem', color:'var(--text-secondary)' },
   tlDesc: { fontSize:'0.85rem', color:'var(--text-secondary)', marginTop:4 },
@@ -69,7 +69,7 @@ const S: Record<string, React.CSSProperties> = {
   badge: { display:'inline-flex', alignItems:'center', gap:4, padding:'3px 10px', borderRadius:999, fontSize:'0.72rem', fontWeight:600 },
 };
 
-const COLORS: Record<string, string> = { alert:'#BC4749', drift_alert:'#BC4749', flag:'#D4A373', info:'#D4A373' };
+const COLORS: Record<string, string> = { alert:'#F0565B', drift_alert:'#F0565B', flag:'#34D6C4', info:'#34D6C4' };
 
 function formatTimestamp(ts: number): string {
   return new Date(ts).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
@@ -224,10 +224,10 @@ export default function Step9Monitoring() {
   return (
     <div>
       {(driftDetected || degradationDetected) && (
-        <div style={{ background: 'rgba(188,71,73,0.15)', border: '1px solid #bc4749', borderRadius: 12, padding: '12px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 16 }}>
-          <AlertTriangle color="#bc4749" size={24} />
+        <div style={{ background: 'rgba(240, 86, 91,0.15)', border: '1px solid #F0565B', borderRadius: 12, padding: '12px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 16 }}>
+          <AlertTriangle color="#F0565B" size={24} />
           <div>
-            <strong style={{ color: '#bc4749', fontSize: '1.05rem' }}>
+            <strong style={{ color: '#F0565B', fontSize: '1.05rem' }}>
               {degradationDetected ? 'Sequential Performance Degradation' : 'Critical Score Drift Detected'}
             </strong>
             <p style={{ margin: '4px 0 0', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
@@ -257,7 +257,7 @@ export default function Step9Monitoring() {
       </div>
 
       {/* Stats Row */}
-      <div style={S.statsRow}>
+      <div className="s9-stats-row">
         <div className="card" style={S.statCard}>
           <div style={S.statLabel}>Current Score</div>
           <div style={{...S.statVal, color: current.fairness_score >= 70 ? 'var(--accent)' : 'var(--warning)' }}>{current.fairness_score.toFixed(1)}</div>
@@ -293,7 +293,7 @@ export default function Step9Monitoring() {
       </div>
 
       {/* Main layout: chart + timeline */}
-      <div style={S.mainGrid}>
+      <div className="s9-main-grid">
         <div style={S.leftCol}>
           {/* Chart */}
           <div className="card">
@@ -329,8 +329,8 @@ export default function Step9Monitoring() {
                 </button>
               </div>
               {driftReport && (
-                <div style={{ flex:1, padding:16, borderRadius:12, border:`0.5px solid ${driftReport.drift_alert ? 'rgba(188,71,73,0.45)' : 'rgba(212,163,115,0.45)'}`, background: driftReport.drift_alert ? 'rgba(188,71,73,0.1)' : 'rgba(212,163,115,0.1)' }}>
-                  <div style={{ fontWeight:600, marginBottom:8, color: driftReport.drift_alert ? '#ef4444' : 'var(--accent)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex:1, padding:16, borderRadius:12, border:`0.5px solid ${driftReport.drift_alert ? 'rgba(240, 86, 91,0.45)' : 'rgba(52, 214, 196,0.45)'}`, background: driftReport.drift_alert ? 'rgba(240, 86, 91,0.1)' : 'rgba(52, 214, 196,0.1)' }}>
+                  <div style={{ fontWeight:600, marginBottom:8, color: driftReport.drift_alert ? '#F0565B' : 'var(--accent)', display: 'flex', alignItems: 'center', gap: 8 }}>
                     {driftReport.drift_alert ? <AlertTriangle size={16} /> : <CheckCircle size={16} />}
                     {driftReport.drift_alert ? 'Significant Drift Detected' : 'No Significant Drift'}
                   </div>
@@ -398,9 +398,9 @@ export default function Step9Monitoring() {
                 </button>
               </div>
               {driftReport && driftReport.status === 'simulation_complete' && (
-                <div style={{ flex:1, padding:16, borderRadius:12, border:`0.5px solid ${driftReport.drift_results?.drift_alert ? 'rgba(188,71,73,0.45)' : 'rgba(212,163,115,0.45)'}`, background: driftReport.drift_results?.drift_alert ? 'rgba(188,71,73,0.1)' : 'rgba(212,163,115,0.1)' }}>
+                <div style={{ flex:1, padding:16, borderRadius:12, border:`0.5px solid ${driftReport.drift_results?.drift_alert ? 'rgba(240, 86, 91,0.45)' : 'rgba(52, 214, 196,0.45)'}`, background: driftReport.drift_results?.drift_alert ? 'rgba(240, 86, 91,0.1)' : 'rgba(52, 214, 196,0.1)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <div style={{ fontWeight:600, color: driftReport.drift_results?.drift_alert ? '#ef4444' : 'var(--accent)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ fontWeight:600, color: driftReport.drift_results?.drift_alert ? '#F0565B' : 'var(--accent)', display: 'flex', alignItems: 'center', gap: 8 }}>
                       {driftReport.drift_results?.drift_alert ? <AlertTriangle size={16} /> : <CheckCircle size={16} />}
                       Simulation Result
                     </div>
@@ -440,8 +440,8 @@ export default function Step9Monitoring() {
           <div style={{ display:'flex', gap:6, flexWrap:'wrap', paddingLeft:8, marginBottom:20 }}>
             {[{k:'all',l:'All'},{k:'alert',l:'Incidents'},{k:'drift_alert',l:'Drift'},{k:'flag',l:'Flags'},{k:'info',l:'Checks'}].map(f => (
               <button key={f.k} onClick={() => setFilterType(f.k)}
-                style={{...S.badge, background: filterType === f.k ? 'rgba(79,142,247,0.15)' : 'rgba(255,255,255,0.04)',
-                  border: `0.5px solid ${filterType === f.k ? 'rgba(212,163,115,0.65)' : 'var(--border)'}`,
+                style={{...S.badge, background: filterType === f.k ? 'rgba(52, 214, 196,0.15)' : 'rgba(255,255,255,0.04)',
+                  border: `0.5px solid ${filterType === f.k ? 'rgba(52, 214, 196,0.65)' : 'var(--border)'}`,
                   color: filterType === f.k ? 'var(--accent)' : 'var(--text-secondary)', cursor:'pointer' }}>
                 {f.l}
               </button>
@@ -488,7 +488,7 @@ export default function Step9Monitoring() {
                             {Object.entries((ev.details.sensitive_distribution_shift as Record<string, number> | undefined) || {}).map(([col, shift]) => (
                               <div key={col} style={S.detailRow}>
                                 <span>{col}</span>
-                                <span style={{ fontWeight:600, color: shift > 0.1 ? '#f59e0b' : '#22c55e' }}>{(shift * 100).toFixed(1)}%</span>
+                                <span style={{ fontWeight:600, color: shift > 0.1 ? '#F2A93B' : '#22c55e' }}>{(shift * 100).toFixed(1)}%</span>
                               </div>
                             ))}
                           </div>

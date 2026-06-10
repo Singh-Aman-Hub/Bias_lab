@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowRight, ArrowLeft } from 'lucide-react';
 import SandboxComparison from '../../components/SandboxComparison';
 import { useAppContext } from '../../context/AppContext';
 import type { FixRecommendation, SandboxResult } from '../../types';
@@ -7,7 +8,6 @@ import type { FixRecommendation, SandboxResult } from '../../types';
 export default function Step8Sandbox() {
   const { file, pipelineResults, recommendResult, runSandboxSimulation, sandboxResult, advanceStep } = useAppContext();
   const [selected, setSelected] = useState<string[]>([]);
-  const [loading] = useState(false);
   const [scenarioLoading, setScenarioLoading] = useState(false);
   const [simulateError, setSimulateError] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -41,7 +41,7 @@ export default function Step8Sandbox() {
     );
   }
 
-  if (loading || !pipelineResults || !recommendResult) {
+  if (!pipelineResults || !recommendResult) {
     return (
       <div className="card" style={{ padding: 40, textAlign: 'center' }}>
         <h2>Generating fix recommendations...</h2>
@@ -72,7 +72,7 @@ export default function Step8Sandbox() {
             const rationale = fix.mitigation_options?.[0]?.rationale || 'Addresses identified bias patterns directly.';
 
             return (
-              <div className="card" key={fix.fix_id} style={{ display: 'flex', flexDirection: 'column', height: '100%', border: isApplied ? '0.5px solid rgba(212,163,115,0.72)' : '0.5px solid var(--border)' }}>
+              <div className="card" key={fix.fix_id} style={{ display: 'flex', flexDirection: 'column', height: '100%', border: isApplied ? '0.5px solid rgba(52, 214, 196,0.72)' : '0.5px solid var(--border)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                     {fix.fix_type.replace(/_/g, ' ').toUpperCase()}
@@ -124,7 +124,7 @@ export default function Step8Sandbox() {
     <div>
       <div className="page-header">
         <div>
-          <div className="kicker">Step 8 of 8</div>
+          <div className="kicker">Step 8 of 9</div>
           <h1 className="page-title">Sandbox Fixes</h1>
           <p className="helper" style={{ marginTop: 8 }}>
             Review AI-generated recommendations to mitigate bias. Apply fixes to your sandbox environment to simulate their impact.
@@ -159,13 +159,13 @@ export default function Step8Sandbox() {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 32 }}>
         <button className="btn btn-secondary" onClick={() => navigate('/workflow/step-7')}>
-          Back
+          <ArrowLeft size={16} /> Back
         </button>
         <button className="btn btn-primary" onClick={async () => {
-          await advanceStep(8);
-          navigate('/dashboard');
+          await advanceStep(9);
+          navigate('/workflow/step-9');
         }}>
-          Finish Workflow
+          Continue to Monitoring <ArrowRight size={16} />
         </button>
       </div>
     </div>

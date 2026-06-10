@@ -37,7 +37,7 @@ export default function Step7StressTest() {
       <div>
         <div className="page-header">
           <div>
-            <div className="kicker">Step 7 of 8</div>
+            <div className="kicker">Step 7 of 9</div>
             <h1 className="page-title">Stress Testing</h1>
           </div>
         </div>
@@ -74,7 +74,7 @@ export default function Step7StressTest() {
     <div>
       <div className="page-header">
         <div>
-          <div className="kicker">Step 7 of 8</div>
+          <div className="kicker">Step 7 of 9</div>
           <h1 className="page-title">Stress Testing</h1>
           <p className="helper" style={{ marginTop: 8 }}>
             Discover how the model's fairness holds up against data perturbations, missing values, and distribution shifts.
@@ -91,9 +91,16 @@ export default function Step7StressTest() {
           </div>
           <button
             className="btn btn-primary"
-            onClick={() => {
+            disabled={loading}
+            onClick={async () => {
               setLoading(true);
-              runModelBias(customScenarios.length > 0 ? customScenarios : undefined); setLoading(false);
+              try {
+                await runModelBias(customScenarios.length > 0 ? customScenarios : undefined);
+              } catch (err) {
+                console.error('Stress test run failed', err);
+              } finally {
+                setLoading(false);
+              }
             }}
           >
             {customScenarios.length > 0 ? 'Run Custom Stress Tests' : 'Re-run Default Stress Tests'}
@@ -188,7 +195,7 @@ export default function Step7StressTest() {
                     <AnimatedNumber value={scenario.fairness_score} />
                   </div>
                 </div>
-                <div style={{ padding: '12px', backgroundColor: isNegative ? 'rgba(188,71,73,0.14)' : 'rgba(212,163,115,0.14)', border: '0.5px solid var(--border)', borderRadius: '8px', textAlign: 'center' }}>
+                <div style={{ padding: '12px', backgroundColor: isNegative ? 'rgba(240, 86, 91,0.14)' : 'rgba(52, 214, 196,0.14)', border: '0.5px solid var(--border)', borderRadius: '8px', textAlign: 'center' }}>
                   <div className="helper" style={{ marginBottom: '4px' }}>Change</div>
                   <div style={{ fontSize: '1.5rem', fontWeight: 600, color: isNegative ? 'var(--warning)' : 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
                     {isNegative ? '▼' : '▲'}

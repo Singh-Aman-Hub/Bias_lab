@@ -18,7 +18,7 @@ export default function CounterfactualFlip({ original, flipped }: { original: st
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.4 }}
         className="card" 
-        style={{ borderColor: 'rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.08)' }}
+        style={{ borderColor: 'rgba(53, 201, 138,0.3)', background: 'rgba(53, 201, 138,0.08)' }}
       >
         <div className="kicker">Original decision</div>
         <h3 className="section-title" style={{ fontSize: '1.5rem', marginTop: '12px' }}>{original}</h3>
@@ -30,12 +30,12 @@ export default function CounterfactualFlip({ original, flipped }: { original: st
         transition={{ duration: 0.6, type: 'spring', bounce: 0.3 }}
         className="card" 
         style={{ 
-          borderColor: 'rgba(239,68,68,0.3)', 
-          background: 'rgba(239,68,68,0.08)', 
+          borderColor: 'rgba(240, 86, 91,0.3)', 
+          background: 'rgba(240, 86, 91,0.08)', 
           transformOrigin: 'top center' 
         }}
       >
-        <div className="kicker" style={{ borderColor: 'rgba(239,68,68,0.5)', color: '#fca5a5' }}>
+        <div className="kicker" style={{ borderColor: 'rgba(240, 86, 91,0.5)', color: '#fca5a5' }}>
           After flipping sensitive attribute
         </div>
         <h3 className="section-title" style={{ fontSize: '1.5rem', marginTop: '12px' }}>{flipped}</h3>

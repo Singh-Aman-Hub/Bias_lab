@@ -1,12 +1,17 @@
 import { motion } from 'framer-motion';
 
+// Honest "trust" signals: the established methods this tool actually implements,
+// and the public benchmark datasets it validates against. No fabricated logos.
+const METHODS = [
+  'Demographic Parity',
+  'Equal Opportunity',
+  'SHAP Explainability',
+  'Counterfactual Fairness',
+  'Proxy Detection',
+  'Stress Testing',
+];
+
 export default function Trust() {
-  const companies = [
-    'NEXUS LABS', 'VERTEX AI', 'QUANTUM9', 'CYBELE', 'SYNTHESIS', 'NEURA CORP', 'COGNIFY', 'ATLAS ML'
-  ];
-
-  const duplicatedCompanies = [...companies, ...companies, ...companies];
-
   return (
     <section id="trust" className="landing-trust-section">
       <div className="landing-container">
@@ -17,30 +22,25 @@ export default function Trust() {
           viewport={{ once: true }}
           className="landing-trust-header"
         >
-          <span className="kicker">Trusted By</span>
+          <span className="kicker">Grounded in fairness research</span>
           <p className="landing-trust-sub">
-            Innovative AI teams rely on BIAS.LAB for algorithmic fairness
+            Eight analysis engines built on peer-reviewed fairness metrics — not a black box.
           </p>
         </motion.div>
 
         <div className="landing-trust-ticker-wrapper">
-          <motion.div
+          <div
             className="landing-trust-ticker"
-            initial={{ x: 0 }}
-            animate={{ x: '-33.33%' }}
-            transition={{
-              duration: 20,
-              repeat: Infinity,
-              ease: 'linear'
-            }}
+            style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 16 }}
           >
-            {duplicatedCompanies.map((company, i) => (
-              <div key={i} className="landing-trust-ticker-item">
-                <span className="landing-trust-ticker-logo" />
-                <span className="landing-trust-ticker-name">{company}</span>
+            {METHODS.map((method) => (
+              <div key={method} className="landing-trust-ticker-item">
+                <span className="landing-trust-ticker-name" style={{ fontFamily: 'var(--font-mono)' }}>
+                  {method}
+                </span>
               </div>
             ))}
-          </motion.div>
+          </div>
         </div>
 
         <motion.div
@@ -51,13 +51,13 @@ export default function Trust() {
           className="card card-primary landing-testimonial"
         >
           <p className="landing-testimonial-text">
-            "BIAS.LAB helped us identify and mitigate proxy discrimination in our
-            hiring model within hours. The automated fix recommendations saved us
-            weeks of manual debugging."
+            Validated against public fairness benchmarks — the UCI Adult Income dataset
+            (48,842 records) and the ProPublica COMPAS recidivism dataset (7,214 records) —
+            so you can reproduce every result.
           </p>
           <div className="landing-testimonial-author">
-            <span className="landing-testimonial-name">Sarah Chen</span>
-            <span className="landing-testimonial-role">Head of AI Ethics, TechFlow</span>
+            <span className="landing-testimonial-name">Reproducible by design</span>
+            <span className="landing-testimonial-role">scikit-learn · fairlearn · SHAP</span>
           </div>
         </motion.div>
       </div>

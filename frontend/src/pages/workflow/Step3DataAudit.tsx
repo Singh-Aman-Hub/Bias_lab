@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import AnimatedBarChart from '../../components/animations/AnimatedBarChart';
+import DisparityBar from '../../components/DisparityBar';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import { ArrowRight, ArrowLeft } from 'lucide-react';
@@ -13,11 +13,18 @@ export default function Step3DataAudit() {
   const primarySensitive = useMemo(() => Object.keys(audit?.group_stats || {})[0] || 'group', [audit]);
   const auditData = audit as DataAuditResult & { under_represented_groups?: string[]; risk_reason?: string };
 
+  // Backend risk_level is "Red" | "Yellow" | "Green"; map to human-readable severity.
+  const RISK_LABEL: Record<string, string> = { Red: 'High', Yellow: 'Moderate', Green: 'Low' };
+  const riskWord = RISK_LABEL[audit?.risk_level ?? ''] ?? audit?.risk_level ?? 'Unknown';
+
   const fairnessScore = useMemo(() => {
+    // Prefer the authoritative data-bias score computed by the pipeline.
+    const fromPipeline = (pipelineResults as unknown as { scores?: { data_bias_score?: number } })?.scores?.data_bias_score;
+    if (typeof fromPipeline === 'number') return fromPipeline;
     if (!audit) return 0;
-    const base = audit.risk_level === 'High' ? 48 : audit.risk_level === 'Medium' ? 70 : 88;
+    const base = audit.risk_level === 'Red' ? 48 : audit.risk_level === 'Yellow' ? 70 : 88;
     return Math.max(0, Math.min(100, base - (Object.keys(audit.missing_data || {}).length * 2)));
-  }, [audit]);
+  }, [audit, pipelineResults]);
 
   const chartData = useMemo(() => {
     if (!audit?.group_stats) return [];
@@ -47,7 +54,7 @@ export default function Step3DataAudit() {
       <div>
         <div className="page-header">
           <div>
-            <div className="kicker">Step 3 of 8</div>
+            <div className="kicker">Step 3 of 9</div>
             <h1 className="page-title">Data Audit</h1>
           </div>
         </div>
@@ -65,14 +72,14 @@ export default function Step3DataAudit() {
     <div>
       <div className="page-header">
         <div>
-          <div className="kicker">Step 3 of 8</div>
+          <div className="kicker">Step 3 of 9</div>
           <h1 className="page-title">Data Audit</h1>
           <p className="page-subtitle">We analyzed your dataset for representation bias and missing data before modeling.</p>
         </div>
       </div>
 
       <div className={`banner ${audit.risk_level.toLowerCase()}`} style={{ marginBottom: 16 }}>
-        <h2 className="section-title" style={{ margin: 0 }}>{audit.risk_level} risk detected</h2>
+        <h2 className="section-title" style={{ margin: 0 }}>{riskWord} risk detected</h2>
         <p className="helper" style={{ color: 'inherit' }}>{auditData.risk_reason}</p>
       </div>
 
@@ -87,8 +94,13 @@ export default function Step3DataAudit() {
       <div className="grid-2" style={{ marginBottom: 16 }}>
         <div className="card">
           <div className="section-title">{primarySensitive} group stats</div>
-          <div style={{ height: 280, marginTop: 16 }}>
-            <AnimatedBarChart data={chartData} height={250} maxDomain={100} valueSuffix="%" />
+          <div style={{ marginTop: 18 }}>
+            <DisparityBar
+              label={`Positive rate · ${primarySensitive}`}
+              groups={chartData.map(d => ({ name: d.label, value: d.value }))}
+              max={100}
+              format={(v) => `${Math.round(v)}%`}
+            />
           </div>
         </div>
         <div className="card">

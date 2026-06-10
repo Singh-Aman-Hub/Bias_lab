@@ -12,7 +12,7 @@ export default function Step5Explanations() {
       <div>
         <div className="page-header">
           <div>
-            <div className="kicker">Step 5 of 8</div>
+            <div className="kicker">Step 5 of 9</div>
             <h1 className="page-title">Explanations</h1>
           </div>
         </div>
@@ -47,15 +47,15 @@ export default function Step5Explanations() {
     <div>
       <div className="page-header">
         <div>
-          <div className="kicker">Step 5 of 8</div>
+          <div className="kicker">Step 5 of 9</div>
           <h1 className="page-title">Explanations</h1>
           <p className="page-subtitle">Understand why the model made certain decisions and review high-risk flags.</p>
         </div>
       </div>
 
       <div style={{
-        backgroundColor: 'rgba(188, 71, 73, 0.1)',
-        border: '0.5px solid rgba(188, 71, 73, 0.5)',
+        backgroundColor: 'rgba(240, 86, 91, 0.1)',
+        border: '0.5px solid rgba(240, 86, 91, 0.5)',
         borderRadius: '8px',
         padding: '16px',
         marginBottom: '24px',
@@ -163,7 +163,7 @@ export default function Step5Explanations() {
                     <div style={{ marginTop: '24px' }}>
                       <button
                         className="btn btn-small"
-                        style={{ backgroundColor: 'rgba(188,71,73,0.14)', color: 'var(--warning)', border: '0.5px solid rgba(188,71,73,0.6)' }}
+                        style={{ backgroundColor: 'rgba(240, 86, 91,0.14)', color: 'var(--warning)', border: '0.5px solid rgba(240, 86, 91,0.6)' }}
                         onClick={() => {
                           const reason = window.prompt('Enter reason for flagging this decision:');
                           if (reason && projectId) {
