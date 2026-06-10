@@ -30,13 +30,11 @@ def run_data_audit(df: pd.DataFrame, sensitive_cols: list[str], target_col: str)
             # Guard: positive_rate safe even when target_col missing or group empty
             if target_col in group_df.columns and not group_df.empty:
                 col = group_df[target_col]
-                # Handle non-numeric target gracefully
-                try:
-                    positive_rate = float(pd.to_numeric(col, errors="coerce").mean())
-                    if positive_rate != positive_rate:  # NaN check
-                        positive_rate = 0.0
-                except Exception:
-                    positive_rate = 0.0
+                if pd.api.types.is_numeric_dtype(col):
+                    positive_rate = float(col.mean())
+                else:
+                    uniq = sorted(col.dropna().unique())
+                    positive_rate = float((col == uniq[1]).mean()) if len(uniq) == 2 else 0.0
             else:
                 positive_rate = 0.0
 
@@ -56,14 +54,14 @@ def run_data_audit(df: pd.DataFrame, sensitive_cols: list[str], target_col: str)
         group_stats[sensitive] = stats_for_sensitive
 
     # Overall class distribution
-    if target_col in df.columns:
-        try:
-            positive_rate = float(pd.to_numeric(df[target_col], errors="coerce").mean())
-            positive_rate = 0.0 if positive_rate != positive_rate else positive_rate
-        except Exception:
-            positive_rate = 0.0
-    else:
-        positive_rate = 0.0
+    positive_rate = 0.0
+    if target_col in df.columns and not df[target_col].empty:
+        col = df[target_col]
+        if pd.api.types.is_numeric_dtype(col):
+            positive_rate = float(col.mean())
+        else:
+            uniq = sorted(col.dropna().unique())
+            positive_rate = float((col == uniq[1]).mean()) if len(uniq) == 2 else 0.0
 
     class_distribution = {
         "approved": round(positive_rate, 4),
@@ -78,14 +76,20 @@ def run_data_audit(df: pd.DataFrame, sensitive_cols: list[str], target_col: str)
     # Approval-rate gap across groups (robust to NaN / empty slices)
     max_gap = 0.0
     worst_reason = "No gaps detected"
+
+    def _rate(col: pd.Series) -> float:
+        if pd.api.types.is_numeric_dtype(col):
+            return float(col.mean())
+        uniq = sorted(col.dropna().unique())
+        if len(uniq) == 2:
+            return float((col == uniq[1]).mean())
+        return 0.0
+
     for sensitive in sensitive_cols:
         if sensitive not in df.columns or target_col not in df.columns:
             continue
         try:
-            pd.to_numeric(df[target_col], errors="coerce")
-            rates = df.groupby(sensitive)[target_col].apply(
-                lambda s: float(pd.to_numeric(s, errors="coerce").mean())
-            ).dropna()
+            rates = df.groupby(sensitive)[target_col].apply(_rate).dropna()
             if rates.empty:
                 continue
             gap = float(rates.max() - rates.min())

@@ -83,6 +83,7 @@ def list_datasets() -> list[dict[str, Any]]:
             "name": ds.name,
             "display_name": ds.display_name,
             "description": ds.description,
+            "filename": ds.filename,
             "target_col": ds.target_col,
             "sensitive_cols": ds.sensitive_cols,
             "suggested_domain": ds.suggested_domain,

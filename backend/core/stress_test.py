@@ -54,7 +54,14 @@ def run_stress_tests(df: pd.DataFrame, model, sensitive_cols: list[str], target_
             mask = modified_df[s_col].astype(str) == target_group
             if mask.any():
                 sample_index = modified_df[mask].sample(frac=mag, random_state=42).index
-                modified_df.loc[sample_index, target_col] = 1 - modified_df.loc[sample_index, target_col]
+                tc = modified_df[target_col]
+                if pd.api.types.is_numeric_dtype(tc):
+                    modified_df.loc[sample_index, target_col] = 1 - tc.loc[sample_index]
+                else:
+                    uniq = sorted(tc.dropna().unique())
+                    if len(uniq) == 2:
+                        flip = {uniq[0]: uniq[1], uniq[1]: uniq[0]}
+                        modified_df.loc[sample_index, target_col] = tc.loc[sample_index].map(flip)
         elif scenario_type == "shift" and s_col in modified_df.columns:
             income_cols = [col for col in modified_df.columns if "income" in col.lower()]
             if income_cols:

@@ -10,7 +10,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 
@@ -67,6 +67,10 @@ def prepare_split(df: pd.DataFrame, target_col: str, random_state: int = 42) -> 
     feature_columns = [col for col in df.columns if col != target_col]
     X = df[feature_columns].copy()
     y = df[target_col].copy()
+    # Binarize target to 0/1 so all downstream functions get consistent numeric labels
+    if not pd.api.types.is_numeric_dtype(y) or set(y.unique()) != {0, 1}:
+        le = LabelEncoder()
+        y = pd.Series(le.fit_transform(y), index=y.index, name=y.name)
     numeric_features = [col for col in X.columns if pd.api.types.is_numeric_dtype(X[col])]
     categorical_features = [col for col in X.columns if col not in numeric_features]
     # Use a dynamic test size for very small datasets to ensure at least 1 sample in each
