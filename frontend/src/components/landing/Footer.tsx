@@ -23,19 +23,18 @@ export default function Footer() {
               <h4>Product</h4>
               <a href="#features">Features</a>
               <a href="#how-it-works">How It Works</a>
-              <a href="#trust">Customers</a>
+              <a href="#trust">Methods</a>
             </div>
             <div className="landing-footer-col">
-              <h4>Company</h4>
-              <a href="#">About</a>
-              <a href="#">Careers</a>
-              <a href="#">Contact</a>
+              <h4>Project</h4>
+              <a href="https://github.com/Ganesh-0509/Bias-Lab" target="_blank" rel="noopener noreferrer">GitHub</a>
+              <a href="https://github.com/Ganesh-0509/Bias-Lab#readme" target="_blank" rel="noopener noreferrer">Documentation</a>
+              <a href="https://github.com/Ganesh-0509/Bias-Lab/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">License (MIT)</a>
             </div>
             <div className="landing-footer-col">
-              <h4>Legal</h4>
-              <a href="#">Privacy</a>
-              <a href="#">Terms</a>
-              <a href="#">Security</a>
+              <h4>Benchmarks</h4>
+              <a href="https://archive.ics.uci.edu/dataset/2/adult" target="_blank" rel="noopener noreferrer">UCI Adult Income</a>
+              <a href="https://github.com/propublica/compas-analysis" target="_blank" rel="noopener noreferrer">ProPublica COMPAS</a>
             </div>
           </div>
         </div>

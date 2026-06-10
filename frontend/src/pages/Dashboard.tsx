@@ -10,6 +10,7 @@ import {
   Target, Fingerprint, Info, Activity, History
 } from 'lucide-react';
 import { api } from '../api/client';
+import GettingStarted from '../components/GettingStarted';
 
 export default function Dashboard() {
   const { pipelineResults, projectId } = useAppContext();
@@ -38,8 +39,8 @@ export default function Dashboard() {
                  Start Audit Sequence
                </button>
              ) : (
-               <button className="btn btn-primary" style={{ padding: '14px 40px', fontSize: '1rem', opacity: 0.5, cursor: 'not-allowed' }}>
-                 Select Project Above
+               <button className="btn btn-primary" disabled title="Use the project menu in the top bar" style={{ padding: '14px 40px', fontSize: '1rem' }}>
+                 Select a project to begin ↑
                </button>
              )}
              <button className="btn" style={{ padding: '14px 30px' }} onClick={() => window.open('https://github.com/Ganesh-0509/Bias-Lab', '_blank', 'noopener,noreferrer')}>
@@ -47,7 +48,11 @@ export default function Dashboard() {
              </button>
            </div>
          </div>
-         
+
+         <div style={{ marginBottom: 48 }}>
+           <GettingStarted />
+         </div>
+
          <div className="grid-3" style={{ opacity: 0.8 }}>
             <div className="card" style={{ padding: 32, textAlign: 'left' }}>
                <div className="workflow-brand-badge" style={{ marginBottom: 20, width: 48, height: 48 }}><Search size={24} /></div>

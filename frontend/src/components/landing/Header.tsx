@@ -31,14 +31,11 @@ export default function Header() {
         <nav className="landing-nav">
           <a href="#features" className="landing-nav-link">Features</a>
           <a href="#how-it-works" className="landing-nav-link">How It Works</a>
-          <a href="#trust" className="landing-nav-link">Case Studies</a>
-          <a href="#" className="landing-nav-link">Documentation</a>
+          <a href="#trust" className="landing-nav-link">Methods</a>
+          <a href="https://github.com/Ganesh-0509/Bias-Lab" target="_blank" rel="noopener noreferrer" className="landing-nav-link">Documentation</a>
         </nav>
 
         <div className="landing-header-actions">
-          <button className="btn btn-ghost btn-small landing-login-btn">
-            Login
-          </button>
           <button
             className="btn btn-primary btn-small"
             onClick={() => navigate('/dashboard')}

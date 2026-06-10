@@ -185,12 +185,6 @@ export default function UIOverlay({ navigate }: UIOverlayProps) {
             >
               START YOUR ANALYSIS
             </button>
-            <button
-              type="button"
-              className="cta-secondary"
-            >
-              BOOK A DEMO
-            </button>
           </div>
         </motion.div>
       </Section>
