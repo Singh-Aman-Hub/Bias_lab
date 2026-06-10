@@ -66,5 +66,7 @@ data/
 presentation/
 *.html
 
-# Graphify generated output (regenerate with `graphify update .`)
+# Local agent tooling — kept out of the repo
 graphify-out/
+skills-lock.json
+.agents/
