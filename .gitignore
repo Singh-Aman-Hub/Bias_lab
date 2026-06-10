@@ -70,3 +70,10 @@ presentation/
 graphify-out/
 skills-lock.json
 .agents/
+
+# Internal/dev docs — kept locally, not shipped to the public repo
+PROMPT.md
+context.md
+CHANGES.md
+frontend/immersive_design.md
+frontend/search_results.md
