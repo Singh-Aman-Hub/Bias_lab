@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, create_engine
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 DATABASE_URL = "sqlite:///./unbiased_ai.db"
@@ -109,6 +109,36 @@ class FairnessFlag(Base):
 
 
 Base.metadata.create_all(bind=engine)
+
+
+def _add_missing_columns() -> None:
+    """Lightweight auto-migration for SQLite.
+
+    ``create_all`` only creates *missing tables*; it never alters a table that
+    already exists. When a new column is added to a model (e.g.
+    ``MonitoringEvent.group_breakdown``), an existing DB file keeps the old
+    schema and queries fail with "no such column". This adds any mapped column
+    that is missing from the physical table. Columns are added as nullable
+    (SQLite cannot add a NOT NULL column to a populated table without a default);
+    the ORM still applies model-level defaults on insert.
+    """
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    with engine.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            if table.name not in existing_tables:
+                continue  # freshly created by create_all — already current
+            existing_cols = {col["name"] for col in inspector.get_columns(table.name)}
+            for column in table.columns:
+                if column.name in existing_cols:
+                    continue
+                col_type = column.type.compile(dialect=engine.dialect)
+                conn.execute(
+                    text(f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {col_type}')
+                )
+
+
+_add_missing_columns()
 
 
 def get_db():
