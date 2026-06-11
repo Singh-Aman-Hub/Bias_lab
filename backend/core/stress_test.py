@@ -63,11 +63,25 @@ def run_stress_tests(df: pd.DataFrame, model, sensitive_cols: list[str], target_
                         flip = {uniq[0]: uniq[1], uniq[1]: uniq[0]}
                         modified_df.loc[sample_index, target_col] = tc.loc[sample_index].map(flip)
         elif scenario_type == "shift" and s_col in modified_df.columns:
-            income_cols = [col for col in modified_df.columns if "income" in col.lower()]
-            if income_cols:
+            # Only numeric feature columns can be scaled. Exclude the target and
+            # sensitive columns so we never try to multiply a string label such as
+            # UCI Adult's `income` (">50K"/"<=50K") by a float.
+            numeric_features = [
+                col for col in modified_df.columns
+                if col != target_col
+                and col not in sensitive_cols
+                and pd.api.types.is_numeric_dtype(modified_df[col])
+            ]
+            income_cols = [col for col in numeric_features if "income" in col.lower()]
+            shift_cols = income_cols or numeric_features
+            if shift_cols:
                 mask = modified_df[s_col].astype(str) == target_group
                 if mask.any():
-                    modified_df.loc[mask, income_cols[0]] = modified_df.loc[mask, income_cols[0]] * (1.0 - mag)
+                    # Cast to float first: scaling an int column by a float and
+                    # assigning back raises an upcast TypeError in modern pandas.
+                    col = shift_cols[0]
+                    modified_df[col] = modified_df[col].astype(float)
+                    modified_df.loc[mask, col] = modified_df.loc[mask, col] * (1.0 - mag)
 
         scenario_split = prepare_split(modified_df, target_col)
         scenario_model = build_classifier(scenario_split.X_train, model_type="rf")

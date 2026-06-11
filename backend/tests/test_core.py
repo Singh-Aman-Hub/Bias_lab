@@ -204,6 +204,21 @@ def test_stress_test_with_custom_scenario():
     assert len(result["scenarios"]) >= 1
 
 
+def test_stress_test_string_income_target_does_not_crash():
+    # Regression: UCI-Adult-style dataset whose *target* column is named "income"
+    # and holds strings. The "shift" scenario must not try to multiply the string
+    # target by a float (previously raised TypeError).
+    df = pd.DataFrame(
+        {
+            "gender": (["male", "female"] * 50),
+            "age": list(range(20, 120)),
+            "income": ([">50K", "<=50K"] * 50),  # string target named "income"
+        }
+    )
+    result = run_stress_tests(df, None, ["gender"], "income")
+    assert len(result["scenarios"]) >= 3
+
+
 # ── Explainability ──────────────────────────────────────────────────────────
 
 
