@@ -222,7 +222,7 @@ def _run_pipeline(
             prediction_drift_score=0.0,
             key_metrics={
                 "accuracy": float(model_bias.get("overall_accuracy", 0.0)),
-                "disparate_impact": model_bias.get("metrics", {}).get("disparate_impact"),
+                "disparate_impact": model_bias.get("disparate_impact", {}).get("ratio"),
                 "demographic_parity": model_bias.get("metrics", {}).get("demographic_parity_difference"),
                 "max_gap": data_audit.get("max_gap", 0.0)
             }

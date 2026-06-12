@@ -45,11 +45,23 @@ export interface OverfitAssessment {
   warning: string | null;
 }
 
+export interface DisparateImpact {
+  ratio: number;
+  passes_four_fifths: boolean;
+  most_favored: string | null;
+  least_favored: string | null;
+  most_favored_rate: number | null;
+  least_favored_rate: number | null;
+  attribute?: string | null;
+  by_attribute?: Record<string, DisparateImpact>;
+}
+
 export interface ModelBiasResult {
   fairness_score: number;
   risk_level: string;
   overall_accuracy: number;
   overfit?: OverfitAssessment;
+  disparate_impact?: DisparateImpact;
   metrics: FairnessGaps;
   group_performance: Record<string, Record<string, GroupMetricValue>>;
   low_confidence_subgroups?: LowConfidenceSubgroup[];

@@ -82,6 +82,7 @@ export default function FairnessMetricsPanel({ biasResult, counterfactualResult 
   const eoGap = biasResult?.metrics?.equal_opportunity_difference ?? NaN;
   const accuracy = biasResult?.overall_accuracy ?? NaN;
   const flipRate = counterfactualResult?.flip_rate ?? NaN;
+  const diRatio = biasResult?.disparate_impact?.ratio ?? NaN;
 
   return (
     <div style={{ marginBottom: '24px' }}>
@@ -115,6 +116,17 @@ export default function FairnessMetricsPanel({ biasResult, counterfactualResult 
         />
         <MetricCard
           index={2}
+          title="Disparate Impact (80% rule)"
+          value={diRatio}
+          isPercentage={true}
+          description="EEOC four-fifths rule — the US legal standard. The least-favored group's selection rate divided by the most-favored group's. At or above 80% passes; below 80% is the legal threshold for adverse impact."
+          thresholds={{
+            good: (v) => v >= 0.8,
+            moderate: (v) => v >= 0.6,
+          }}
+        />
+        <MetricCard
+          index={3}
           title="Counterfactual Flip Rate"
           value={flipRate}
           isPercentage={true}
@@ -125,7 +137,7 @@ export default function FairnessMetricsPanel({ biasResult, counterfactualResult 
           }}
         />
         <MetricCard
-          index={3}
+          index={4}
           title="Overall Accuracy"
           value={accuracy}
           isPercentage={true}

@@ -13,7 +13,7 @@ from fairlearn.metrics import (
     true_positive_rate,
 )
 
-from .common import MIN_SUBGROUP_SIZE, build_classifier, fit_classifier, fairness_gaps, fairness_score_from_gaps, group_metrics, overfit_assessment, prepare_split, risk_from_score
+from .common import MIN_SUBGROUP_SIZE, build_classifier, fit_classifier, fairness_gaps, fairness_score_from_gaps, group_metrics, disparate_impact_ratio, overfit_assessment, prepare_split, risk_from_score
 
 
 def run_model_bias_analysis(
@@ -75,6 +75,19 @@ def run_model_bias_analysis(
                     "group": group_name,
                     "sample_size": stats.get("sample_size"),
                 })
+
+    # Disparate impact / four-fifths (80%) rule per sensitive attribute; the headline is the
+    # worst (lowest) ratio across attributes — the legal ratio standard, not just the gap.
+    di_by_attr: dict[str, Any] = {}
+    worst_di: dict[str, Any] | None = None
+    for sensitive, groups in group_performance.items():
+        rates = {g: m["approval_rate"] for g, m in groups.items()}
+        di = disparate_impact_ratio(rates)
+        di_by_attr[sensitive] = di
+        if worst_di is None or di["ratio"] < worst_di["ratio"]:
+            worst_di = {**di, "attribute": sensitive}
+    disparate_impact = worst_di or {"ratio": 1.0, "passes_four_fifths": True, "attribute": None}
+    disparate_impact["by_attribute"] = di_by_attr
 
     # Fairlearn MetricFrame analysis
     fairlearn_metrics: dict[str, Any] = {}
@@ -153,6 +166,7 @@ def run_model_bias_analysis(
         "risk_level": risk_level,
         "metrics": {key: round(value, 4) for key, value in metrics.items()},
         "group_performance": group_performance,
+        "disparate_impact": disparate_impact,
         "low_confidence_subgroups": low_confidence_subgroups,
         "min_subgroup_size": MIN_SUBGROUP_SIZE,
         "fairlearn_metrics": fairlearn_metrics,

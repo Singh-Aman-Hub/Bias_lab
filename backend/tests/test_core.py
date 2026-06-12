@@ -8,6 +8,7 @@ from core.common import (
     fairness_gaps,
     fairness_score_from_gaps,
     group_metrics,
+    disparate_impact_ratio,
     overfit_assessment,
     prepare_split,
     resolve_positive_label,
@@ -183,6 +184,20 @@ def test_data_audit_uses_favorable_label():
     gs = res["group_stats"]["gender"]
     assert gs["male"]["positive_rate"] == 0.8
     assert gs["female"]["positive_rate"] == 0.3
+
+
+def test_disparate_impact_ratio():
+    # men 50% approved, women 20% → ratio 0.4, fails the 80% rule
+    di = disparate_impact_ratio({"male": 0.5, "female": 0.2})
+    assert di["ratio"] == 0.4
+    assert di["passes_four_fifths"] is False
+    assert di["most_favored"] == "male" and di["least_favored"] == "female"
+    # near-parity passes
+    ok = disparate_impact_ratio({"a": 0.40, "b": 0.36})
+    assert ok["ratio"] == 0.9 and ok["passes_four_fifths"] is True
+    # single group → no impact
+    one = disparate_impact_ratio({"only": 0.5})
+    assert one["ratio"] == 1.0 and one["passes_four_fifths"] is True
 
 
 def test_overfit_assessment():

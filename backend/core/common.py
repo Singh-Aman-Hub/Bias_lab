@@ -357,6 +357,35 @@ def overfit_assessment(train_accuracy: float, test_accuracy: float) -> dict[str,
     }
 
 
+def disparate_impact_ratio(selection_rates: dict[str, float]) -> dict[str, Any]:
+    """The EEOC four-fifths (80%) rule — the US legal standard for adverse impact.
+
+    Unlike the additive gap (max − min), this is a *ratio*: the least-favored group's
+    selection (positive) rate divided by the most-favored group's. A ratio below 0.80 is
+    the legal threshold for adverse impact. Returns the ratio, a pass/fail flag, and which
+    groups are most / least favored.
+    """
+    rates = {str(g): float(r) for g, r in selection_rates.items()}
+    if len(rates) < 2:
+        return {
+            "ratio": 1.0, "passes_four_fifths": True,
+            "most_favored": None, "least_favored": None,
+            "most_favored_rate": None, "least_favored_rate": None,
+        }
+    most_favored = max(rates, key=lambda k: rates[k])
+    least_favored = min(rates, key=lambda k: rates[k])
+    max_rate = rates[most_favored]
+    ratio = (rates[least_favored] / max_rate) if max_rate > 0 else 0.0
+    return {
+        "ratio": round(ratio, 4),
+        "passes_four_fifths": ratio >= 0.8,
+        "most_favored": most_favored,
+        "least_favored": least_favored,
+        "most_favored_rate": round(max_rate, 4),
+        "least_favored_rate": round(rates[least_favored], 4),
+    }
+
+
 def group_metrics(y_true: pd.Series, y_pred: pd.Series, group: pd.Series) -> dict[str, dict[str, float]]:
     output: dict[str, dict[str, float]] = {}
     for value in group.astype(str).unique():
