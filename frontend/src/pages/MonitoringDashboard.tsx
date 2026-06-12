@@ -150,7 +150,7 @@ export default function MonitoringDashboard() {
                    <div className="card-inset" style={{ textAlign: 'center', padding: '24px 16px' }}>
                       <BarChart3 size={24} style={{ color: 'var(--yellow)', marginBottom: 12, margin: '0 auto' }} />
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>Prediction</div>
-                      <span className="pill green" style={{ fontSize: '0.7rem' }}>NOMINAL</span>
+                      <span className="pill" style={{ fontSize: '0.7rem', opacity: 0.6 }}>NOT TRACKED</span>
                    </div>
                    <div className="card-inset" style={{ textAlign: 'center', padding: '24px 16px' }}>
                       <ShieldAlert size={24} style={{ color: trend === 'DOWN' ? '#F0565B' : 'var(--green)', marginBottom: 12, margin: '0 auto' }} />
@@ -164,21 +164,20 @@ export default function MonitoringDashboard() {
 
              <div className="card">
                 <div className="section-title">Root Cause Diagnostics</div>
-                <p className="helper" style={{ marginBottom: 20 }}>Top feature shifts contributing to distribution drift.</p>
-                <div className="stack stack-sm">
-                   <div className="card-inset" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 600 }}>Gender Distribution</span>
-                      <span style={{ color: '#F0565B', fontWeight: 800 }}>32% shift</span>
+                <p className="helper" style={{ marginBottom: 20 }}>Feature-level breakdown of what's driving distribution drift.</p>
+                {driftDetected ? (
+                   <div className="card-inset" style={{ borderLeft: '4px solid var(--yellow)' }}>
+                      <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--yellow)' }}>Fairness drift detected</div>
+                      <p className="helper" style={{ margin: 0 }}>
+                         Run a drift check against your latest data to see which features shifted and by how much.
+                      </p>
                    </div>
-                   <div className="card-inset" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 600 }}>Applicant Income</span>
-                      <span style={{ color: 'var(--yellow)', fontWeight: 800 }}>18% shift</span>
+                ) : (
+                   <div className="card-inset" style={{ textAlign: 'center', padding: '28px 16px' }}>
+                      <ShieldCheck size={28} color="var(--green)" style={{ margin: '0 auto 12px' }} />
+                      <p className="helper" style={{ margin: 0 }}>No significant drift detected across logged runs.</p>
                    </div>
-                   <div className="card-inset" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 600 }}>Region/ZIP Code</span>
-                      <span style={{ color: 'var(--green)', fontWeight: 800 }}>6% shift</span>
-                   </div>
-                </div>
+                )}
              </div>
           </div>
 
