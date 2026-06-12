@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CounterfactualFlip from '../../components/CounterfactualFlip';
 import ScoreGauge from '../../components/ScoreGauge';
+import Toast, { useToast, errMsg } from '../../components/Toast';
 import { useAppContext } from '../../context/AppContext';
 import { api } from '../../api/client';
 import { ArrowRight, ArrowLeft } from 'lucide-react';
@@ -10,6 +11,7 @@ import type { CounterfactualResult } from '../../types';
 export default function Step6Counterfactual() {
   const { pipelineResults, sensitiveCols, counterfactualResult, projectId, advanceStep } = useAppContext();
   const [sensitiveCol, setSensitiveCol] = useState(sensitiveCols[0] || 'gender');
+  const { toast, showToast, clear } = useToast();
   const navigate = useNavigate();
 
   if (!pipelineResults || !counterfactualResult) {
@@ -129,16 +131,19 @@ export default function Step6Counterfactual() {
                         <strong>{sensitiveCol}</strong>: <em>{flip.original_value}</em> → <em>{flip.flipped_value}</em>
                       </td>
                       <td style={{ padding: '12px 8px' }}>
-                        <button className="btn btn-small" onClick={() => {
+                        <button className="btn btn-small" onClick={async () => {
                           const reason = window.prompt('Enter reason for flagging this decision:');
-                          if (reason && projectId) {
-                            api.post('/monitoring/flag', {
+                          if (!reason) return;
+                          if (!projectId) { showToast('Select a project before flagging.', 'error'); return; }
+                          try {
+                            await api.post('/monitoring/flag', {
                               project_id: parseInt(projectId),
                               record_id: String(flip.record_id),
                               reason,
-                            }).then(() => {
-                              alert('Decision flagged for review.');
                             });
+                            showToast(`Record #${flip.record_id} flagged for review.`, 'success');
+                          } catch (err) {
+                            showToast(errMsg(err, 'Could not flag this decision.'), 'error');
                           }
                         }}>🚩 Flag</button>
                       </td>
@@ -162,6 +167,8 @@ export default function Step6Counterfactual() {
           Continue to Stress Test <ArrowRight size={16} />
         </button>
       </div>
+
+      <Toast toast={toast} onClose={clear} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MonitoringChart from '../../components/MonitoringChart';
+import Toast, { useToast, errMsg } from '../../components/Toast';
 import { useAppContext } from '../../context/AppContext';
 import { formApi, api } from '../../api/client';
 import { AlertTriangle, Flag, Activity, Info, CheckCircle, Clock, TrendingUp, TrendingDown, Shield, ChevronDown, ChevronUp, Zap } from 'lucide-react';
@@ -96,11 +97,16 @@ export default function Step9Monitoring() {
   const [filterType, setFilterType] = useState<string>('all');
   const [monitorData, setMonitorData] = useState<MonitorData | null>(null);
   const [trendData, setTrendData] = useState<TrendData | null>(null);
+  const [ingesting, setIngesting] = useState(false);
+  const { toast, showToast, clear } = useToast();
   const navigate = useNavigate();
 
   const fetchFlags = async () => { try { const r = await api.get(`/monitoring/flags/${projectId}`); setFlags(r.data); } catch { /* ignore */ } };
   useEffect(() => { fetchFlags(); }, [projectId]);
-  const resolveFlag = async (id: number) => { try { await api.patch(`/monitoring/flag/${id}`); fetchFlags(); } catch { /* ignore */ } };
+  const resolveFlag = async (id: number) => {
+    try { await api.patch(`/monitoring/flag/${id}`); fetchFlags(); showToast('Flag marked resolved.', 'success'); }
+    catch (err) { showToast(errMsg(err, 'Could not resolve the flag.'), 'error'); }
+  };
 
   const fetchMonitorData = async () => {
     if (projectId) {
@@ -122,7 +128,15 @@ export default function Step9Monitoring() {
     const fd = new FormData();
     fd.append('baseline_file', file); fd.append('current_file', driftFile);
     fd.append('sensitive_cols', sensitiveCols.join(',')); fd.append('target_col', targetCol);
-    try { const r = await formApi.post('/monitoring/drift', fd); setDriftReport(r.data); } finally { setDriftLoading(false); }
+    try {
+      const r = await formApi.post('/monitoring/drift', fd);
+      setDriftReport(r.data);
+      showToast(r.data?.drift_alert ? 'Drift check complete — drift detected.' : 'Drift check complete — no significant drift.', r.data?.drift_alert ? 'info' : 'success');
+    } catch (err) {
+      showToast(errMsg(err, 'Drift check failed. Please verify the file and try again.'), 'error');
+    } finally {
+      setDriftLoading(false);
+    }
   };
 
    useEffect(() => {
@@ -143,17 +157,25 @@ export default function Step9Monitoring() {
 
    const handleLiveIngestion = async () => {
      if (!file) return;
-     const text = await file.text(); const lines = text.split(/\r?\n/).filter(l => l.trim()); const rows = lines.slice(1);
-     const chunkSize = Math.ceil(rows.length / 5);
-     for (let i = 0; i < 5; i++) {
-       const chunk = rows.slice(i * chunkSize, (i + 1) * chunkSize);
-       const predictions = chunk.map(r => {
-         const [record_id, prediction, sensitive_attrs, timestamp] = r.split(',');
-          let attrs = {}; try { attrs = JSON.parse(sensitive_attrs); } catch { /* ignore */ }
-          return { record_id: Number(record_id), prediction: Number(prediction), sensitive_attrs: attrs, timestamp };
-       });
-      await api.post('/monitoring/ingest', { project_id: parseInt(projectId ?? '0', 10), predictions });
-       await getMonitoringData(); await new Promise(r => setTimeout(r, 500));
+     setIngesting(true);
+     try {
+       const text = await file.text(); const lines = text.split(/\r?\n/).filter(l => l.trim()); const rows = lines.slice(1);
+       const chunkSize = Math.ceil(rows.length / 5);
+       for (let i = 0; i < 5; i++) {
+         const chunk = rows.slice(i * chunkSize, (i + 1) * chunkSize);
+         const predictions = chunk.map(r => {
+           const [record_id, prediction, sensitive_attrs, timestamp] = r.split(',');
+            let attrs = {}; try { attrs = JSON.parse(sensitive_attrs); } catch { /* ignore */ }
+            return { record_id: Number(record_id), prediction: Number(prediction), sensitive_attrs: attrs, timestamp };
+         });
+        await api.post('/monitoring/ingest', { project_id: parseInt(projectId ?? '0', 10), predictions });
+         await getMonitoringData(); await new Promise(r => setTimeout(r, 500));
+       }
+       showToast('Live ingestion complete — monitoring updated.', 'success');
+     } catch (err) {
+       showToast(errMsg(err, 'Live ingestion failed. Please try again.'), 'error');
+     } finally {
+       setIngesting(false);
      }
    };
 
@@ -251,8 +273,8 @@ export default function Step9Monitoring() {
           <p className="helper" style={{ marginTop:8 }}>Track fairness over time. Detect drift. Investigate incidents.</p>
         </div>
         <div style={{ display:'flex', gap:10 }}>
-          <button className="btn btn-secondary" onClick={handleLiveIngestion} disabled={simulating}>
-            {simulating ? 'Ingesting...' : 'Simulate Live Ingestion'}
+          <button className="btn btn-secondary" onClick={handleLiveIngestion} disabled={ingesting || simulating}>
+            {ingesting ? 'Ingesting...' : 'Simulate Live Ingestion'}
           </button>
           <button className="btn btn-primary" onClick={handleSimulate} disabled={simulating}>
             <Zap size={16} /> {simulating ? 'Simulating...' : 'Simulate 30 Days'}
@@ -394,6 +416,9 @@ export default function Step9Monitoring() {
                   try {
                     const r = await formApi.post(`/monitoring/project/${projectId}/simulate-data`, fd);
                     setSandboxReport(r.data);
+                    showToast('Simulation complete.', 'success');
+                  } catch (err) {
+                    showToast(errMsg(err, 'Simulation failed. Please verify the file and try again.'), 'error');
                   } finally {
                     setSandboxLoading(false);
                   }
@@ -528,6 +553,8 @@ export default function Step9Monitoring() {
         <button className="btn btn-secondary" onClick={() => navigate('/workflow/step-8')}>← Back</button>
         <button className="btn btn-primary" onClick={() => { navigate('/monitoring'); }}>Go to Live Dashboard</button>
       </div>
+
+      <Toast toast={toast} onClose={clear} />
     </div>
   );
 }
