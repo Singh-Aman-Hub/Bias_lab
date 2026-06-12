@@ -20,6 +20,7 @@ interface AppState {
   modelFile: File | null;
   sensitiveCols: string[];
   targetCol: string;
+  positiveLabel: string;
   domain: string;
   projectId: string | null;
   modelType: 'file' | 'api';
@@ -48,6 +49,7 @@ interface AppContextType extends AppState {
   setModelFile: (val: File | null) => void;
   setSensitiveCols: (val: string[]) => void;
   setTargetCol: (val: string) => void;
+  setPositiveLabel: (val: string) => void;
   setDomain: (val: string) => void;
   setProjectId: (val: string | null) => void;
   setModelType: (val: 'file' | 'api') => void;
@@ -84,6 +86,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [modelFile, setModelFile] = useState<File | null>(null);
   const [sensitiveCols, setSensitiveCols] = useState<string[]>([]);
   const [targetCol, setTargetCol] = useState('');
+  const [positiveLabel, setPositiveLabel] = useState('');
   const [domain, setDomain] = useState('loan');
   const [projectId, setProjectId] = useState<string | null>(null);
   const [modelType, setModelType] = useState<'file' | 'api'>('file');
@@ -123,7 +126,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       fd.append('project_id', projectId ?? '0');
       fd.append('metric_priority', metricPriority);
       fd.append('domain', domain);
-      // Pass an uploaded custom model so the pipeline uses it instead of the built-in RF
+      if (positiveLabel) fd.append('positive_label', positiveLabel);
+      // Pass an uploaded custom model so the pipeline uses it instead of the built-in model
       if (modelFile) fd.append('custom_model_file', modelFile);
 
       // Kick off background task — increased timeout to 60s
@@ -399,7 +403,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppContext.Provider value={{
-      file, setFile, modelFile, setModelFile, sensitiveCols, setSensitiveCols, targetCol, setTargetCol, domain, setDomain, projectId, setProjectId,
+      file, setFile, modelFile, setModelFile, sensitiveCols, setSensitiveCols, targetCol, setTargetCol, positiveLabel, setPositiveLabel, domain, setDomain, projectId, setProjectId,
       modelType, setModelType, apiUrl, setApiUrl, requestFormat, setRequestFormat,
       metricPriority, setMetricPriority,
       auditResult, setAuditResult, proxyResult, setProxyResult, biasResult, setBiasResult,

@@ -37,14 +37,31 @@ export interface FairnessGaps {
   fnr_gap: number;
 }
 
+export interface OverfitAssessment {
+  train_accuracy: number | null;
+  test_accuracy: number | null;
+  gap: number | null;
+  level: 'none' | 'mild' | 'high' | 'unknown';
+  warning: string | null;
+}
+
 export interface ModelBiasResult {
   fairness_score: number;
   risk_level: string;
   overall_accuracy: number;
+  overfit?: OverfitAssessment;
   metrics: FairnessGaps;
   group_performance: Record<string, Record<string, GroupMetricValue>>;
+  low_confidence_subgroups?: LowConfidenceSubgroup[];
+  min_subgroup_size?: number;
   model_used: string;
   hidden_bias?: HiddenBiasEntry[];
+}
+
+export interface LowConfidenceSubgroup {
+  attribute: string;
+  group: string;
+  sample_size: number;
 }
 
 export interface GroupMetricValue {
@@ -52,6 +69,8 @@ export interface GroupMetricValue {
   tpr: number;
   fpr: number;
   accuracy: number;
+  sample_size?: number;
+  low_confidence?: boolean;
 }
 
 export interface HiddenBiasEntry {

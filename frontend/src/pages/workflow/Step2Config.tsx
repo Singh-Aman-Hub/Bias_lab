@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import { formApi } from '../../api/client';
-import { ArrowRight, ArrowLeft, Loader } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Loader, AlertTriangle } from 'lucide-react';
 
 const ANALYSIS_STAGES = [
   'Scanning dataset for representation gaps',
@@ -79,6 +79,7 @@ export default function Step2Config() {
     modelFile, setModelFile,
     sensitiveCols, setSensitiveCols,
     targetCol, setTargetCol,
+    positiveLabel, setPositiveLabel,
     domain, setDomain,
     projectId,
     modelType, setModelType,
@@ -90,7 +91,9 @@ export default function Step2Config() {
   } = useAppContext();
 
   const [headers, setHeaders] = useState<string[]>([]);
+  const [targetValues, setTargetValues] = useState<string[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
+  const linesRef = useRef<string[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -100,7 +103,8 @@ export default function Step2Config() {
     }
     file.text().then(text => {
       const lines = text.trim().split(/\r?\n/);
-      const parsedHeaders = lines[0]?.split(',') ?? [];
+      linesRef.current = lines;
+      const parsedHeaders = lines[0]?.split(',').map(h => h.trim()) ?? [];
       setHeaders(parsedHeaders);
       // Auto-select last column as target if none selected yet
       if (!targetCol && parsedHeaders.length > 0) {
@@ -108,6 +112,29 @@ export default function Step2Config() {
       }
     });
   }, [file, navigate]);
+
+  // Scan the chosen target column for its distinct values (capped) so we can offer a
+  // favorable-outcome selector and warn early if the target isn't binary.
+  useEffect(() => {
+    const lines = linesRef.current;
+    const idx = headers.indexOf(targetCol);
+    if (!targetCol || idx < 0 || lines.length < 2) {
+      setTargetValues([]);
+      return;
+    }
+    const seen = new Set<string>();
+    for (let i = 1; i < lines.length && seen.size <= 50; i++) {
+      const cell = (lines[i].split(',')[idx] ?? '').trim();
+      if (cell !== '') seen.add(cell);
+    }
+    const values = Array.from(seen);
+    setTargetValues(values);
+    // Clear a stale favorable-outcome choice that no longer belongs to this target.
+    if (positiveLabel && !seen.has(positiveLabel)) setPositiveLabel('');
+  }, [targetCol, headers]);
+
+  const isBinaryTarget = targetValues.length === 2;
+  const isNonBinaryTarget = targetValues.length > 2 || targetValues.length === 1;
 
   const handleStartAnalysis = async () => {
     setLocalError(null);
@@ -244,14 +271,44 @@ export default function Step2Config() {
         <div className="card">
           <div className="section-title">Target column</div>
           <p className="helper" style={{ marginBottom: 8 }}>The column the model predicts (e.g. 'Approved', 'Risk').</p>
-          <select 
-            className="select" 
-            value={targetCol} 
+          <select
+            className="select"
+            value={targetCol}
             onChange={(event) => setTargetCol(event.target.value)}
           >
             {headers.map((header) => <option key={header} value={header}>{header}</option>)}
           </select>
-          
+
+          {/* Favorable outcome selector — only meaningful for a binary target */}
+          {isBinaryTarget && (
+            <div style={{ marginTop: 16 }}>
+              <div className="section-title">Favorable outcome</div>
+              <p className="helper" style={{ marginBottom: 8 }}>
+                Which value is the positive / approved outcome? Drives approval rate, TPR and the fairness gaps.
+              </p>
+              <select
+                className="select"
+                value={positiveLabel}
+                onChange={(e) => setPositiveLabel(e.target.value)}
+              >
+                <option value="">Auto-detect (recommended)</option>
+                {targetValues.map((v) => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* Non-binary target warning — the audit only supports binary outcomes */}
+          {isNonBinaryTarget && (
+            <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'flex-start', color: 'var(--amber, #d99a2b)' }}>
+              <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+              <p className="helper" style={{ margin: 0, color: 'inherit' }}>
+                {targetValues.length === 1
+                  ? `'${targetCol}' has only one value — a fairness audit needs two outcome classes.`
+                  : `'${targetCol}' has ${targetValues.length}+ distinct values. This audit measures fairness for binary decisions — pick a column with exactly two outcomes (e.g. approved/denied), or map this to two classes first.`}
+              </p>
+            </div>
+          )}
+
           <div style={{ height: 24 }} />
 
           <div className="section-title">Project Domain</div>
@@ -401,7 +458,7 @@ export default function Step2Config() {
         <button
           className="btn btn-primary"
           onClick={handleStartAnalysis}
-          disabled={!file || (modelType === 'api' && (!apiUrl || !requestFormat))}
+          disabled={!file || isNonBinaryTarget || (modelType === 'api' && (!apiUrl || !requestFormat))}
         >
           Start Full Analysis <ArrowRight size={16} />
         </button>
