@@ -10,6 +10,9 @@ export default function Step8Sandbox() {
   const [selected, setSelected] = useState<string[]>([]);
   const [scenarioLoading, setScenarioLoading] = useState(false);
   const [simulateError, setSimulateError] = useState<string | null>(null);
+  // The selection that was last actually simulated, so we can tell the user when the
+  // current selection is "dirty" (changed since the last run) instead of re-running per toggle.
+  const [lastRun, setLastRun] = useState<string[] | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -18,10 +21,12 @@ export default function Step8Sandbox() {
   }, [recommendResult]);
 
   const handleSimulate = async (fixesToRun?: string[]) => {
+    const fixes = fixesToRun || selected;
     setScenarioLoading(true);
     setSimulateError(null);
     try {
-      await runSandboxSimulation(fixesToRun || selected);
+      await runSandboxSimulation(fixes);
+      setLastRun(fixes);
     } catch (e) {
       const err = e as { response?: { data?: { detail?: string } }; message?: string };
       const message = err.response?.data?.detail || err.message || 'Simulation failed';
@@ -30,6 +35,10 @@ export default function Step8Sandbox() {
       setScenarioLoading(false);
     }
   };
+
+  const selKey = JSON.stringify([...selected].sort());
+  const runKey = lastRun ? JSON.stringify([...lastRun].sort()) : null;
+  const dirty = selKey !== runKey;
 
   if (!file) {
     return (
@@ -99,18 +108,13 @@ export default function Step8Sandbox() {
                   className={`btn ${isApplied ? 'btn-secondary' : 'btn-primary'}`}
                   style={{ width: '100%', justifyContent: 'center' }}
                   onClick={() => {
-                    let newSelected;
-                    if (isApplied) {
-                      newSelected = selected.filter(id => id !== fix.fix_id);
-                    } else {
-                      newSelected = [...selected, fix.fix_id];
-                    }
-                    setSelected(newSelected);
-                    handleSimulate(newSelected);
+                    // Only update the selection — the simulation runs when the user clicks
+                    // "Run Simulation", not on every toggle.
+                    setSelected(isApplied ? selected.filter(id => id !== fix.fix_id) : [...selected, fix.fix_id]);
                   }}
                   disabled={scenarioLoading}
                 >
-                  {scenarioLoading ? 'Running...' : isApplied ? 'Remove from Sandbox' : 'Apply in Sandbox'}
+                  {isApplied ? 'Remove from Selection' : 'Add to Selection'}
                 </button>
               </div>
             );
@@ -130,6 +134,29 @@ export default function Step8Sandbox() {
             Review AI-generated recommendations to mitigate bias. Apply fixes to your sandbox environment to simulate their impact.
           </p>
         </div>
+      </div>
+
+      <div
+        className="card"
+        style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}
+      >
+        <div>
+          <div style={{ fontWeight: 600 }}>{selected.length} fix{selected.length !== 1 ? 'es' : ''} selected</div>
+          <div className="helper">
+            {scenarioLoading
+              ? 'Running the simulation…'
+              : dirty
+                ? 'Selection changed — run the simulation to see updated results.'
+                : 'Results below reflect the current selection.'}
+          </div>
+        </div>
+        <button
+          className="btn btn-primary"
+          onClick={() => handleSimulate(selected)}
+          disabled={scenarioLoading || selected.length === 0}
+        >
+          {scenarioLoading ? 'Running…' : 'Run Simulation'}
+        </button>
       </div>
 
       <div style={{ marginBottom: 40 }}>
