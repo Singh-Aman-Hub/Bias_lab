@@ -4,10 +4,14 @@ import pandas as pd
 
 from core.common import (
     build_classifier,
+    fit_classifier,
     fairness_gaps,
     fairness_score_from_gaps,
     group_metrics,
+    overfit_assessment,
     prepare_split,
+    resolve_positive_label,
+    validate_target_column,
     risk_from_gap,
     risk_from_score,
     encode_sensitive_series,
@@ -33,9 +37,10 @@ def _small_loan_df() -> pd.DataFrame:
 
 
 def _build_model(df: pd.DataFrame, target_col: str = "approved"):
+    # Exercises the production default (XGBoost + early stopping via fit_classifier).
     prep = prepare_split(df, target_col)
-    model = build_classifier(prep.X_train, model_type="rf")
-    model.fit(prep.X_train, prep.y_train)
+    model = build_classifier(prep.X_train)
+    model = fit_classifier(model, prep.X_train, prep.y_train)
     return model, prep
 
 
@@ -85,11 +90,92 @@ def test_fairness_gaps():
     assert all(0.0 <= v <= 1.0 for v in gaps.values())
 
 
+def test_fairness_gaps_includes_small_subgroups():
+    # "flag, don't exclude": a tiny 100%-approved minority group must NOT be dropped
+    # from the gap (that would hide bias against it). Two large groups at 50% plus a
+    # 3-sample group at 100% → DP gap reflects the minority (~0.5).
+    y_pred = pd.Series([1] * 50 + [0] * 50 + [1] * 50 + [0] * 50 + [1, 1, 1])
+    y_true = y_pred.copy()
+    group = pd.Series(["a"] * 100 + ["b"] * 100 + ["c"] * 3)
+    gaps = fairness_gaps(y_pred, y_true, group)
+    assert gaps["demographic_parity_difference"] > 0.4  # minority not hidden
+
+
+def test_group_metrics_flags_small_subgroups():
+    y_pred = pd.Series([1, 0] * 60 + [1, 1, 1])
+    y_true = y_pred.copy()
+    group = pd.Series(["big"] * 120 + ["tiny"] * 3)
+    m = group_metrics(y_true, y_pred, group)
+    assert m["big"]["sample_size"] == 120 and m["big"]["low_confidence"] is False
+    assert m["tiny"]["sample_size"] == 3 and m["tiny"]["low_confidence"] is True
+
+
 def test_fairness_score_from_gaps():
     gaps_high = {"demographic_parity_difference": 0.9, "equal_opportunity_difference": 0.9, "fpr_gap": 0.9, "fnr_gap": 0.9}
     assert fairness_score_from_gaps(gaps_high) < 50
     gaps_low = {"demographic_parity_difference": 0.0, "equal_opportunity_difference": 0.0, "fpr_gap": 0.0, "fnr_gap": 0.0}
     assert fairness_score_from_gaps(gaps_low) == 100.0
+
+
+def test_resolve_positive_label_picks_favorable():
+    assert resolve_positive_label(["approved", "denied"]) == "approved"
+    assert resolve_positive_label(["<=50K", ">50K"]) == ">50K"
+    assert resolve_positive_label([0, 1]) == 1
+    assert resolve_positive_label(["yes", "no"]) == "yes"
+    # explicit override always wins
+    assert resolve_positive_label(["cat", "dog"], override="cat") == "cat"
+    # truly ambiguous labels → alphabetically-last fallback (historical behavior)
+    assert resolve_positive_label(["alpha", "beta"]) == "beta"
+
+
+def test_validate_target_column():
+    assert validate_target_column(pd.Series(["approved", "denied", "approved"]), "t")["valid"] is True
+    assert validate_target_column(pd.Series([0, 1, 1, 0]), "t")["valid"] is True
+    # single class, multiclass, and continuous are all rejected with a message
+    one = validate_target_column(pd.Series(["yes", "yes"]), "t")
+    assert one["valid"] is False and "two outcome classes" in one["error"]
+    multi = validate_target_column(pd.Series(["low", "medium", "high"]), "t")
+    assert multi["valid"] is False and multi["n_classes"] == 3
+    cont = validate_target_column(pd.Series([float(i) * 1.5 for i in range(50)]), "t")
+    assert cont["valid"] is False and "continuous" in cont["error"]
+
+
+def test_prepare_split_maps_favorable_to_one():
+    # 25% approved. "approved" sorts BEFORE "denied", so the old LabelEncoder would have
+    # made "denied"=1 and measured a 75% "positive" rate. The favorable label must be 1.
+    df = pd.DataFrame({"x": list(range(20)), "approved": (["approved"] * 5 + ["denied"] * 15)})
+    prep = prepare_split(df, "approved")
+    y_all = pd.concat([prep.y_train, prep.y_test])
+    assert round(float(y_all.mean()), 2) == 0.25
+
+
+def test_data_audit_uses_favorable_label():
+    # male approval 0.8, female approval 0.3 — with the old sorted()[1]="denied" bug these
+    # would have been reported as denial rates (0.2 / 0.7).
+    df = pd.DataFrame({
+        "gender": ["male"] * 10 + ["female"] * 10,
+        "decision": ["approved"] * 8 + ["denied"] * 2 + ["approved"] * 3 + ["denied"] * 7,
+    })
+    res = run_data_audit(df, ["gender"], "decision")
+    gs = res["group_stats"]["gender"]
+    assert gs["male"]["positive_rate"] == 0.8
+    assert gs["female"]["positive_rate"] == 0.3
+
+
+def test_overfit_assessment():
+    # Healthy: small gap → no warning
+    healthy = overfit_assessment(0.86, 0.84)
+    assert healthy["level"] == "none"
+    assert healthy["warning"] is None
+    assert healthy["gap"] == 0.02
+    # Mild: 5-10% gap
+    mild = overfit_assessment(0.95, 0.87)
+    assert mild["level"] == "mild"
+    assert mild["warning"] is not None
+    # High: >10% gap (e.g. an unbounded tree memorizing the training set)
+    high = overfit_assessment(1.0, 0.80)
+    assert high["level"] == "high"
+    assert "overfitting" in high["warning"].lower()
 
 
 def test_group_metrics():
@@ -158,6 +244,10 @@ def test_model_bias_returns_all_metrics():
     assert "demographic_parity_difference" in result["metrics"]
     assert "group_performance" in result
     assert "hidden_bias" in result
+    # Overfit signal present and well-formed
+    assert "overfit" in result
+    assert result["overfit"]["level"] in ("none", "mild", "high", "unknown")
+    assert "gap" in result["overfit"]
 
 
 def test_model_bias_with_prebuilt_model():

@@ -4,13 +4,29 @@ from typing import Any
 
 import pandas as pd
 
-from .common import risk_from_gap
+from .common import resolve_positive_label, risk_from_gap
 
 
-def run_data_audit(df: pd.DataFrame, sensitive_cols: list[str], target_col: str) -> dict[str, Any]:
+def run_data_audit(df: pd.DataFrame, sensitive_cols: list[str], target_col: str, positive_label: Any = None) -> dict[str, Any]:
     group_stats: dict[str, dict[str, Any]] = {}
     under_represented_groups: list[str] = []
     total_rows = max(len(df), 1)  # guard division by zero
+
+    # Resolve the favorable outcome ONCE on the whole target so every group (even a group
+    # with a single outcome) is scored against the same label, rather than re-guessing the
+    # positive class per slice.
+    pos_label = (
+        resolve_positive_label(df[target_col], override=positive_label)
+        if target_col in df.columns else None
+    )
+
+    def _rate(col: pd.Series) -> float:
+        col = col.dropna()
+        if col.empty:
+            return 0.0
+        if pd.api.types.is_numeric_dtype(col) and set(pd.unique(col)) <= {0, 1}:
+            return float(col.mean())
+        return float((col == pos_label).mean()) if pos_label is not None else 0.0
 
     for sensitive in sensitive_cols:
         if sensitive not in df.columns:
@@ -27,23 +43,18 @@ def run_data_audit(df: pd.DataFrame, sensitive_cols: list[str], target_col: str)
             mask = df[sensitive].astype(str) == str(group_value)
             group_df = df[mask]
 
-            # Guard: positive_rate safe even when target_col missing or group empty
+            # Guard: positive rate safe even when target_col missing or group empty
             if target_col in group_df.columns and not group_df.empty:
-                col = group_df[target_col]
-                if pd.api.types.is_numeric_dtype(col):
-                    positive_rate = float(col.mean())
-                else:
-                    uniq = sorted(col.dropna().unique())
-                    positive_rate = float((col == uniq[1]).mean()) if len(uniq) == 2 else 0.0
+                group_positive_rate = _rate(group_df[target_col])
             else:
-                positive_rate = 0.0
+                group_positive_rate = 0.0
 
             missing_rate = float(group_df.isna().mean().mean()) if not group_df.empty else 0.0
             representation_ratio = count_int / total_rows  # total_rows >= 1, safe
 
             stats_for_sensitive[str(group_value)] = {
                 "count": count_int,
-                "positive_rate": round(positive_rate, 4),
+                "positive_rate": round(group_positive_rate, 4),
                 "missing_rate": round(missing_rate, 4),
                 "under_represented": bool(representation_ratio < 0.2),
             }
@@ -54,18 +65,13 @@ def run_data_audit(df: pd.DataFrame, sensitive_cols: list[str], target_col: str)
         group_stats[sensitive] = stats_for_sensitive
 
     # Overall class distribution
-    positive_rate = 0.0
+    overall_positive_rate = 0.0
     if target_col in df.columns and not df[target_col].empty:
-        col = df[target_col]
-        if pd.api.types.is_numeric_dtype(col):
-            positive_rate = float(col.mean())
-        else:
-            uniq = sorted(col.dropna().unique())
-            positive_rate = float((col == uniq[1]).mean()) if len(uniq) == 2 else 0.0
+        overall_positive_rate = _rate(df[target_col])
 
     class_distribution = {
-        "approved": round(positive_rate, 4),
-        "rejected": round(1.0 - positive_rate, 4),
+        "approved": round(overall_positive_rate, 4),
+        "rejected": round(1.0 - overall_positive_rate, 4),
     }
 
     missing_data = {
@@ -73,17 +79,10 @@ def run_data_audit(df: pd.DataFrame, sensitive_cols: list[str], target_col: str)
         for column in df.columns
     }
 
-    # Approval-rate gap across groups (robust to NaN / empty slices)
+    # Approval-rate gap across groups (robust to NaN / empty slices). Reuses the _rate
+    # helper defined above, which scores against the once-resolved favorable label.
     max_gap = 0.0
     worst_reason = "No gaps detected"
-
-    def _rate(col: pd.Series) -> float:
-        if pd.api.types.is_numeric_dtype(col):
-            return float(col.mean())
-        uniq = sorted(col.dropna().unique())
-        if len(uniq) == 2:
-            return float((col == uniq[1]).mean())
-        return 0.0
 
     for sensitive in sensitive_cols:
         if sensitive not in df.columns or target_col not in df.columns:

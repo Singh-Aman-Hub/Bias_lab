@@ -13,7 +13,7 @@ from fairlearn.metrics import (
     true_positive_rate,
 )
 
-from .common import build_classifier, fairness_gaps, fairness_score_from_gaps, group_metrics, prepare_split, risk_from_score
+from .common import MIN_SUBGROUP_SIZE, build_classifier, fit_classifier, fairness_gaps, fairness_score_from_gaps, group_metrics, overfit_assessment, prepare_split, risk_from_score
 
 
 def run_model_bias_analysis(
@@ -33,12 +33,22 @@ def run_model_bias_analysis(
         model_used = "user_provided"
         # Do NOT refit — assume the loaded model is already trained.
     else:
-        model = build_classifier(prepared.X_train, model_type="rf")
-        model.fit(prepared.X_train, prepared.y_train)
-        model_used = "built_in_rf"
+        model = build_classifier(prepared.X_train)
+        model = fit_classifier(model, prepared.X_train, prepared.y_train)
+        model_used = "built_in_xgb"
 
     y_pred = pd.Series(model.predict(prepared.X_test), index=prepared.y_test.index)
     overall_accuracy = float(accuracy_score(prepared.y_test, y_pred))
+
+    # Train-vs-test gap → overfit signal. Guarded so a mismatched user-provided model
+    # never breaks the audit.
+    try:
+        train_pred = pd.Series(model.predict(prepared.X_train), index=prepared.y_train.index)
+        train_accuracy = float(accuracy_score(prepared.y_train, train_pred))
+        overfit = overfit_assessment(train_accuracy, overall_accuracy)
+    except Exception:
+        overfit = {"train_accuracy": None, "test_accuracy": round(overall_accuracy, 4),
+                   "gap": None, "level": "unknown", "warning": None}
 
     metrics = {"demographic_parity_difference": 0.0, "equal_opportunity_difference": 0.0, "fpr_gap": 0.0, "fnr_gap": 0.0}
     for sensitive in sensitive_cols:
@@ -51,11 +61,20 @@ def run_model_bias_analysis(
     risk_level = risk_from_score(fairness_score)
 
     group_performance: dict[str, Any] = {}
+    low_confidence_subgroups: list[dict[str, Any]] = []
     for sensitive in sensitive_cols:
         if sensitive not in df.columns:
             continue
         group_series = df.loc[prepared.y_test.index, sensitive]
-        group_performance[sensitive] = group_metrics(prepared.y_test, y_pred, group_series)
+        gm = group_metrics(prepared.y_test, y_pred, group_series)
+        group_performance[sensitive] = gm
+        for group_name, stats in gm.items():
+            if stats.get("low_confidence"):
+                low_confidence_subgroups.append({
+                    "attribute": sensitive,
+                    "group": group_name,
+                    "sample_size": stats.get("sample_size"),
+                })
 
     # Fairlearn MetricFrame analysis
     fairlearn_metrics: dict[str, Any] = {}
@@ -112,7 +131,7 @@ def run_model_bias_analysis(
             overall_rate = float(y_pred.mean())
             for combo, group_df in df_test.groupby('_combo'):
                 idx = group_df.index
-                if len(idx) < 20:
+                if len(idx) < MIN_SUBGROUP_SIZE:
                     continue
                 group_rate = float(y_pred.loc[idx].mean())
                 diff = group_rate - overall_rate
@@ -129,10 +148,13 @@ def run_model_bias_analysis(
 
     return {
         "overall_accuracy": round(overall_accuracy, 4),
+        "overfit": overfit,
         "fairness_score": round(fairness_score),
         "risk_level": risk_level,
         "metrics": {key: round(value, 4) for key, value in metrics.items()},
         "group_performance": group_performance,
+        "low_confidence_subgroups": low_confidence_subgroups,
+        "min_subgroup_size": MIN_SUBGROUP_SIZE,
         "fairlearn_metrics": fairlearn_metrics,
         "model_used": model_used,
         "hidden_bias": sorted(hidden_bias, key=lambda x: abs(x["metricValue"]), reverse=True)[:10]

@@ -5,7 +5,7 @@ from typing import Any
 import pandas as pd
 from sklearn.metrics import accuracy_score
 
-from .common import build_classifier, fairness_gaps, fairness_score_from_gaps, prepare_split
+from .common import build_classifier, fit_classifier, fairness_gaps, fairness_score_from_gaps, prepare_split
 
 
 def run_counterfactual_test(
@@ -17,8 +17,8 @@ def run_counterfactual_test(
 ) -> dict[str, Any]:
     prepared = prepare_split(df, target_col)
     if model is None:
-        pipeline = build_classifier(prepared.X_train, model_type="rf")
-        pipeline.fit(prepared.X_train, prepared.y_train)
+        pipeline = build_classifier(prepared.X_train)
+        pipeline = fit_classifier(pipeline, prepared.X_train, prepared.y_train)
     else:
         pipeline = model
     y_pred = pd.Series(pipeline.predict(prepared.X_test), index=prepared.y_test.index)

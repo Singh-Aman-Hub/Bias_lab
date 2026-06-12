@@ -14,6 +14,25 @@ from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 
+try:
+    from xgboost import XGBClassifier
+    _HAS_XGB = True
+except ImportError:  # pragma: no cover - exercised only when xgboost is absent
+    _HAS_XGB = False
+
+
+# Default model for the audit's built-in proxy. Gradient boosting (XGBoost) is the
+# current industry standard for tabular credit/risk scoring; Random Forest is kept as
+# a fallback (and selectable option) when xgboost is unavailable.
+DEFAULT_MODEL_TYPE = "xgb"
+
+
+# Minimum samples a subgroup needs before its per-group rates are trusted. Subgroups
+# smaller than this are excluded from fairness-gap comparisons (a handful of records
+# produces noisy rates that inflate max−min gaps) and flagged ``low_confidence`` in
+# group_metrics. ~30 is the common rule-of-thumb threshold for sample-mean stability.
+MIN_SUBGROUP_SIZE = 30
+
 
 RISK_LEVELS = {"Green": 75, "Yellow": 50, "Red": 0}
 
@@ -63,14 +82,132 @@ def make_feature_frame(df: pd.DataFrame, target_col: str) -> pd.DataFrame:
     return df.drop(columns=[target_col]).copy()
 
 
-def prepare_split(df: pd.DataFrame, target_col: str, random_state: int = 42) -> PreparedData:
+# Tokens used to recognize the favorable ("positive") outcome of a binary target so the
+# tool measures the *approval / good* rate rather than whichever label happens to sort last.
+_FAVORABLE_TOKENS = {
+    "approved", "approve", "approval", "yes", "y", "true", "t", "good", "accept", "accepted",
+    "hire", "hired", "granted", "grant", "positive", "pass", "passed", "success", "successful",
+    "eligible", "admit", "admitted", "selected", "funded", ">50k",
+}
+_UNFAVORABLE_TOKENS = {
+    "denied", "deny", "rejected", "reject", "no", "n", "false", "f", "bad", "decline",
+    "declined", "fail", "failed", "negative", "ineligible", "unsuccessful", "<=50k", "<50k",
+    "churn", "default", "defaulted", "fraud",
+}
+
+
+def _label_polarity(label: Any) -> int:
+    """+1 if a label reads as a favorable outcome, -1 if unfavorable, 0 if unknown."""
+    s = str(label).strip().lower().strip(".")
+    if s.startswith("not ") or s.startswith("non-") or s.startswith("no "):
+        return -1
+    if s in _FAVORABLE_TOKENS:
+        return 1
+    if s in _UNFAVORABLE_TOKENS:
+        return -1
+    if any(tok in s for tok in (">50k", "approv", "accept", "grant", "eligible", "hire")):
+        return 1
+    if any(tok in s for tok in ("<=50k", "<50k", "reject", "deny", "denied", "declin", "default", "fraud", "ineligibl")):
+        return -1
+    return 0
+
+
+# Above this many distinct numeric values, a target is treated as continuous (a score or
+# amount) rather than a class label.
+_CONTINUOUS_UNIQUE_THRESHOLD = 20
+
+
+def validate_target_column(series: pd.Series, target_col: str = "target") -> dict[str, Any]:
+    """Check that a target column is a usable binary outcome for a fairness audit.
+
+    Returns ``{"valid": bool, "n_classes": int, "classes": [...], "error": str | None}``.
+    A binary target (exactly two distinct non-null values, of any type) is valid. Anything
+    else is rejected with an actionable message rather than silently producing meaningless
+    binary metrics on a multiclass / continuous target.
+    """
+    s = series.dropna()
+    n = int(s.nunique())
+    classes = [str(v) for v in list(pd.unique(s))[:10]]
+
+    if n < 2:
+        return {
+            "valid": False, "n_classes": n, "classes": classes,
+            "error": (
+                f"Target column '{target_col}' has only {n} distinct value(s). A fairness "
+                f"audit needs two outcome classes (e.g. approved vs denied)."
+            ),
+        }
+    if n == 2:
+        return {"valid": True, "n_classes": 2, "classes": classes, "error": None}
+
+    if pd.api.types.is_numeric_dtype(s) and n > _CONTINUOUS_UNIQUE_THRESHOLD:
+        return {
+            "valid": False, "n_classes": n, "classes": classes,
+            "error": (
+                f"Target column '{target_col}' looks continuous ({n} distinct numeric "
+                f"values). This audit measures fairness for binary decisions - choose a "
+                f"binary outcome column, or convert this into two classes (e.g. threshold "
+                f"it into high / low)."
+            ),
+        }
+    return {
+        "valid": False, "n_classes": n, "classes": classes,
+        "error": (
+            f"Target column '{target_col}' has {n} classes ({', '.join(classes)}). This "
+            f"audit supports binary outcomes only - map it to two outcomes (favorable vs "
+            f"unfavorable) or pick a binary target column."
+        ),
+    }
+
+
+def resolve_positive_label(values: Any, override: Any = None) -> Any:
+    """Pick the favorable / "positive" label of a binary target.
+
+    Order of preference: an explicit ``override`` if present in the data; the numeric ``1``
+    for a {0,1} target; otherwise the label that reads as favorable (approved/yes/>50K/…).
+    When neither label is recognizable it falls back to the alphabetically-last value — the
+    tool's historical behavior — so this is never *worse* than before, only better when the
+    labels are meaningful.
+    """
+    uniq = list(pd.Series(values).dropna().unique())
+    if not uniq:
+        return None
+    if override is not None and override in uniq:
+        return override
+    if set(uniq) == {0, 1}:
+        return 1
+    # Highest polarity wins; ties (both unknown) fall back to the alphabetically-last label.
+    return max(uniq, key=lambda label: (_label_polarity(label), str(label)))
+
+
+def positive_rate(col: pd.Series, override: Any = None) -> float:
+    """Share of records whose target equals the favorable label (0.0 if undefined)."""
+    col = col.dropna()
+    if col.empty:
+        return 0.0
+    if pd.api.types.is_numeric_dtype(col) and set(pd.unique(col)) <= {0, 1}:
+        return float(col.mean())
+    if col.nunique() != 2:
+        return 0.0
+    pos = resolve_positive_label(col, override=override)
+    return float((col == pos).mean())
+
+
+def prepare_split(df: pd.DataFrame, target_col: str, random_state: int = 42, positive_label: Any = None) -> PreparedData:
     feature_columns = [col for col in df.columns if col != target_col]
     X = df[feature_columns].copy()
     y = df[target_col].copy()
-    # Binarize target to 0/1 so all downstream functions get consistent numeric labels
-    if not pd.api.types.is_numeric_dtype(y) or set(y.unique()) != {0, 1}:
-        le = LabelEncoder()
-        y = pd.Series(le.fit_transform(y), index=y.index, name=y.name)
+    # Binarize target to 0/1 so all downstream functions get consistent numeric labels.
+    # For a 2-class target, map the *favorable* outcome to 1 (not whichever label sorts
+    # last) so approval_rate/TPR/etc. measure the outcome users actually care about.
+    if not pd.api.types.is_numeric_dtype(y) or set(y.dropna().unique()) != {0, 1}:
+        non_null = y.dropna().unique()
+        if len(non_null) == 2:
+            pos = resolve_positive_label(non_null, override=positive_label)
+            y = (y == pos).astype(int)
+        else:
+            le = LabelEncoder()
+            y = pd.Series(le.fit_transform(y), index=y.index, name=y.name)
     numeric_features = [col for col in X.columns if pd.api.types.is_numeric_dtype(X[col])]
     categorical_features = [col for col in X.columns if col not in numeric_features]
     # Use a dynamic test size for very small datasets to ensure at least 1 sample in each
@@ -91,7 +228,7 @@ def prepare_split(df: pd.DataFrame, target_col: str, random_state: int = 42) -> 
     return PreparedData(X_train, X_test, y_train, y_test, feature_columns, numeric_features, categorical_features)
 
 
-def build_classifier(X_train: pd.DataFrame, model_type: str = "rf") -> Pipeline:
+def build_classifier(X_train: pd.DataFrame, model_type: str = DEFAULT_MODEL_TYPE) -> Pipeline:
     numeric_features = [col for col in X_train.columns if pd.api.types.is_numeric_dtype(X_train[col])]
     categorical_features = [col for col in X_train.columns if col not in numeric_features]
     numeric_pipeline = Pipeline(
@@ -115,9 +252,100 @@ def build_classifier(X_train: pd.DataFrame, model_type: str = "rf") -> Pipeline:
     estimator: Any
     if model_type == "linear":
         estimator = LogisticRegression(max_iter=1000)
+    elif model_type == "rf":
+        estimator = RandomForestClassifier(n_estimators=50, random_state=42, n_jobs=-1)
+    elif model_type == "xgb" and _HAS_XGB:
+        # bounded depth + subsampling regularize the model; the high n_estimators cap is
+        # only fully used when fit() runs *without* early stopping. fit_classifier() carves
+        # a validation set and stops early, so the effective tree count is tuned to the data.
+        estimator = XGBClassifier(
+            n_estimators=1000,
+            learning_rate=0.05,
+            max_depth=5,
+            subsample=0.9,
+            colsample_bytree=0.9,
+            tree_method="hist",
+            eval_metric="logloss",
+            random_state=42,
+            n_jobs=-1,
+        )
     else:
+        # xgb requested but unavailable, or unknown type → safe RF fallback.
         estimator = RandomForestClassifier(n_estimators=50, random_state=42, n_jobs=-1)
     return Pipeline(steps=[("preprocessor", preprocessor), ("model", estimator)])
+
+
+def fit_classifier(pipeline: Pipeline, X_train: pd.DataFrame, y_train: pd.Series) -> Pipeline:
+    """Fit a pipeline built by ``build_classifier``.
+
+    For an XGBoost estimator with enough data, carve a stratified validation split,
+    transform it through the fitted preprocessor, and fit with early stopping so the
+    number of boosting rounds is tuned to the data (regularization against overfit).
+    For every other model — or tiny / single-class data, or if early stopping fails —
+    fall back to a plain full-data fit. Returns the (now fitted) pipeline.
+    """
+    model = pipeline.named_steps.get("model") if hasattr(pipeline, "named_steps") else None
+    preprocessor = pipeline.named_steps.get("preprocessor") if hasattr(pipeline, "named_steps") else None
+    is_xgb = model is not None and model.__class__.__name__ == "XGBClassifier"
+    n_classes = int(pd.Series(y_train).nunique())
+
+    if is_xgb and preprocessor is not None and len(X_train) >= 50 and n_classes > 1:
+        try:
+            X_tr, X_val, y_tr, y_val = train_test_split(
+                X_train, y_train, test_size=0.15, random_state=42, stratify=y_train
+            )
+            X_tr_t = preprocessor.fit_transform(X_tr, y_tr)
+            X_val_t = preprocessor.transform(X_val)
+            model.set_params(early_stopping_rounds=30)
+            model.fit(X_tr_t, y_tr, eval_set=[(X_val_t, y_val)], verbose=False)
+            return pipeline
+        except Exception:
+            # Reset early stopping so the plain fit below does not demand an eval set.
+            try:
+                model.set_params(early_stopping_rounds=None)
+            except Exception:
+                pass
+
+    pipeline.fit(X_train, y_train)
+    return pipeline
+
+
+def overfit_assessment(train_accuracy: float, test_accuracy: float) -> dict[str, Any]:
+    """Compare train vs test accuracy and flag overfitting.
+
+    A large positive gap (train >> test) means the model fits the training data far
+    better than unseen data — it is memorizing rather than generalizing, and any
+    fairness metrics it produces may be optimistic relative to production behavior.
+    """
+    train_accuracy = float(train_accuracy)
+    test_accuracy = float(test_accuracy)
+    gap = round(train_accuracy - test_accuracy, 4)
+
+    if gap <= 0.05:
+        level, warning = "none", None
+    elif gap <= 0.10:
+        level = "mild"
+        warning = (
+            f"Training accuracy ({train_accuracy:.1%}) exceeds test accuracy "
+            f"({test_accuracy:.1%}) by {gap:.1%} — mild overfitting. The model still "
+            f"generalizes reasonably, but monitor its performance on new data."
+        )
+    else:
+        level = "high"
+        warning = (
+            f"Training accuracy ({train_accuracy:.1%}) exceeds test accuracy "
+            f"({test_accuracy:.1%}) by {gap:.1%} — significant overfitting. The model "
+            f"may be memorizing the training data, so these fairness metrics could be "
+            f"more optimistic than real-world behavior."
+        )
+
+    return {
+        "train_accuracy": round(train_accuracy, 4),
+        "test_accuracy": round(test_accuracy, 4),
+        "gap": gap,
+        "level": level,
+        "warning": warning,
+    }
 
 
 def group_metrics(y_true: pd.Series, y_pred: pd.Series, group: pd.Series) -> dict[str, dict[str, float]]:
@@ -127,9 +355,10 @@ def group_metrics(y_true: pd.Series, y_pred: pd.Series, group: pd.Series) -> dic
         group_true = y_true[mask]
         group_pred = y_pred[mask]
         
-        if len(group_true) == 0:
+        n = int(len(group_true))
+        if n == 0:
             continue
-            
+
         tn, fp, fn, tp = confusion_matrix(group_true, group_pred, labels=[0, 1]).ravel()
         denom_pos = max(tp + fn, 1)
         denom_neg = max(fp + tn, 1)
@@ -138,34 +367,49 @@ def group_metrics(y_true: pd.Series, y_pred: pd.Series, group: pd.Series) -> dic
             "tpr": float(tp / denom_pos),
             "fpr": float(fp / denom_neg),
             "accuracy": float(accuracy_score(group_true, group_pred)),
+            "sample_size": n,
+            "low_confidence": n < MIN_SUBGROUP_SIZE,
         }
     return output
 
 
 def fairness_gaps(y_pred: pd.Series, y_true: pd.Series, group: pd.Series) -> dict[str, float]:
     group_values = group.astype(str).unique()
-    approval_rates = []
-    tprs = []
-    fprs = []
-    fnrs = []
+    stats: list[dict[str, float]] = []
     for value in group_values:
         mask = group.astype(str) == value
         group_true = y_true[mask]
         group_pred = y_pred[mask]
-        
-        if len(group_true) == 0:
+
+        n = int(len(group_true))
+        if n == 0:
             continue
-            
+
         tn, fp, fn, tp = confusion_matrix(group_true, group_pred, labels=[0, 1]).ravel()
-        approval_rates.append(float(np.mean(group_pred)))
-        tprs.append(float(tp / max(tp + fn, 1)))
-        fprs.append(float(fp / max(fp + tn, 1)))
-        fnrs.append(float(fn / max(tp + fn, 1)))
+        stats.append({
+            "size": n,
+            "approval": float(np.mean(group_pred)),
+            "tpr": float(tp / max(tp + fn, 1)),
+            "fpr": float(fp / max(fp + tn, 1)),
+            "fnr": float(fn / max(tp + fn, 1)),
+        })
+
+    # Include ALL groups in the gap — never silently drop a protected minority just
+    # because it is small, or the tool would hide the very bias it exists to surface.
+    # The size guard instead drives the ``low_confidence`` flags in group_metrics so
+    # the UI can caveat gaps that are driven by statistically thin subgroups.
+    if not stats:
+        return {"demographic_parity_difference": 0.0, "equal_opportunity_difference": 0.0, "fpr_gap": 0.0, "fnr_gap": 0.0}
+
+    approval_rates = [s["approval"] for s in stats]
+    tprs = [s["tpr"] for s in stats]
+    fprs = [s["fpr"] for s in stats]
+    fnrs = [s["fnr"] for s in stats]
     return {
-        "demographic_parity_difference": float(max(approval_rates) - min(approval_rates)) if approval_rates else 0.0,
-        "equal_opportunity_difference": float(max(tprs) - min(tprs)) if tprs else 0.0,
-        "fpr_gap": float(max(fprs) - min(fprs)) if fprs else 0.0,
-        "fnr_gap": float(max(fnrs) - min(fnrs)) if fnrs else 0.0,
+        "demographic_parity_difference": float(max(approval_rates) - min(approval_rates)),
+        "equal_opportunity_difference": float(max(tprs) - min(tprs)),
+        "fpr_gap": float(max(fprs) - min(fprs)),
+        "fnr_gap": float(max(fnrs) - min(fnrs)),
     }
 
 

@@ -5,7 +5,7 @@ from typing import Any
 import pandas as pd
 from sklearn.metrics import accuracy_score
 
-from .common import build_classifier, fairness_gaps, fairness_score_from_gaps, prepare_split, risk_from_score
+from .common import build_classifier, fit_classifier, fairness_gaps, fairness_score_from_gaps, prepare_split, risk_from_score
 
 
 def _apply_fix(df: pd.DataFrame, fix: dict[str, Any], sensitive_cols: list[str], target_col: str) -> tuple[pd.DataFrame, Any]:
@@ -113,8 +113,8 @@ def run_sandbox_simulation(
         if model_override:
             y_pred = pd.Series(model_override.predict(prepared.X_test), index=prepared.y_test.index)
         else:
-            model = build_classifier(prepared.X_train, model_type="rf")
-            model.fit(prepared.X_train, prepared.y_train)
+            model = build_classifier(prepared.X_train)
+            model = fit_classifier(model, prepared.X_train, prepared.y_train)
             y_pred = pd.Series(model.predict(prepared.X_test), index=prepared.y_test.index)
             
         accuracy = float(accuracy_score(prepared.y_test, y_pred))
@@ -138,8 +138,8 @@ def run_sandbox_simulation(
     # Add threshold tuning scenario if requested
     if any(f.get("fix_id") == "threshold_tune" for f in fixes_to_apply):
         prepared = prepare_split(df, target_col)
-        model = build_classifier(prepared.X_train, model_type="rf")
-        model.fit(prepared.X_train, prepared.y_train)
+        model = build_classifier(prepared.X_train)
+        model = fit_classifier(model, prepared.X_train, prepared.y_train)
         y_pred_tuned, _ = _apply_threshold_tuning(df, sensitive_cols, target_col, prepared, model)
         
         accuracy = float(accuracy_score(prepared.y_test, y_pred_tuned))

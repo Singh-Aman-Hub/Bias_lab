@@ -18,7 +18,7 @@ from core.counterfactual import run_counterfactual_test
 from core.data_audit import run_data_audit
 from core.explainability import explain_flagged_decisions, generate_narrative_summary
 from core.feature_intelligence import detect_proxy_features
-from core.common import build_classifier, get_metric_weights, prepare_split
+from core.common import build_classifier, fit_classifier, get_metric_weights, prepare_split, resolve_positive_label, validate_target_column
 from core.model_bias import run_model_bias_analysis
 from core.stress_test import run_stress_tests
 from models.db import AuditRun, Project, MonitoringLog, Alert, get_db
@@ -51,6 +51,7 @@ def _run_pipeline(
     metric_weights: dict[str, float],
     model_bytes: bytes | None,
     domain: str,
+    positive_label: str | None,
 ) -> None:
     """Background worker: runs all 8 stages and writes result to task_store."""
     import io
@@ -77,15 +78,26 @@ def _run_pipeline(
 
         df = pd.read_csv(io.BytesIO(df_bytes))
 
+        # ── Normalize the target to 0/1 once, with the favorable outcome = 1 ──────
+        # Doing this up front (rather than per-engine) means every stage shares the same
+        # positive-class definition — the user's choice if provided, else the heuristic.
+        if target_col in df.columns and df[target_col].dropna().nunique() == 2:
+            chosen = positive_label if (positive_label and positive_label in set(df[target_col].astype(str))) else None
+            if chosen is not None:
+                pos = next(v for v in df[target_col].dropna().unique() if str(v) == str(chosen))
+            else:
+                pos = resolve_positive_label(df[target_col])
+            df[target_col] = (df[target_col] == pos).astype(int)
+
         # ── Build / load model ────────────────────────────────────────────────
         prepared = prepare_split(df, target_col)
         if model_bytes:
             shared_model = load_model_from_bytes(model_bytes)
             model_used = "user_provided"
         else:
-            shared_model = build_classifier(prepared.X_train, model_type="rf")
-            shared_model.fit(prepared.X_train, prepared.y_train)
-            model_used = "built_in_rf"
+            shared_model = build_classifier(prepared.X_train)
+            shared_model = fit_classifier(shared_model, prepared.X_train, prepared.y_train)
+            model_used = "built_in_xgb"
 
         # ── Stage 1: Data Audit ───────────────────────────────────────────────
         data_audit = run_data_audit(df, sensitive_list, target_col)
@@ -262,13 +274,47 @@ async def run_all(
     project_id: str = Form(default=""),
     metric_priority: str = Form(default="balanced"),
     domain: str = Form(default="general"),
+    positive_label: str = Form(default=""),
     custom_model_file: UploadFile | None = None,
 ) -> dict[str, str]:
     """
     Accepts the CSV and optional model file, immediately returns a task_id.
     The heavy computation runs in a background thread.
     """
+    import io
+    import pandas as pd
+
     df_bytes = await file.read()
+    sensitive_list = [col.strip() for col in sensitive_cols.split(",") if col.strip()]
+
+    # ── Fail fast on an unusable dataset, with a clear message ────────────────
+    # Validate the schema + target up front (cheap: header + the target column only) so a
+    # multiclass / continuous / missing target is rejected immediately instead of producing
+    # meaningless binary metrics inside the background task.
+    try:
+        header = pd.read_csv(io.BytesIO(df_bytes), nrows=0)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Could not read the uploaded CSV: {exc}")
+    columns = list(header.columns)
+
+    if target_col not in columns:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Target column '{target_col}' is not in the file. Available columns: {', '.join(columns)}.",
+        )
+    missing_sensitive = [c for c in sensitive_list if c not in columns]
+    if missing_sensitive:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Sensitive column(s) not found in the file: {', '.join(missing_sensitive)}.",
+        )
+    try:
+        target_series = pd.read_csv(io.BytesIO(df_bytes), usecols=[target_col])[target_col]
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Could not read target column '{target_col}': {exc}")
+    verdict = validate_target_column(target_series, target_col)
+    if not verdict["valid"]:
+        raise HTTPException(status_code=400, detail=verdict["error"])
 
     # ── Safe model_file read ──────────────────────────────────────────────────
     model_bytes: bytes | None = None
@@ -280,7 +326,6 @@ async def run_all(
         except Exception:
             model_bytes = None
 
-    sensitive_list = [col.strip() for col in sensitive_cols.split(",") if col.strip()]
     metric_weights = get_metric_weights(metric_priority)
 
     task_id = str(uuid.uuid4())
@@ -297,6 +342,7 @@ async def run_all(
         metric_weights=metric_weights,
         model_bytes=model_bytes,
         domain=domain,
+        positive_label=positive_label or None,
     )
 
     return {"task_id": task_id, "status": "processing"}

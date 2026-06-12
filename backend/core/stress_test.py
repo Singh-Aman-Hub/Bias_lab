@@ -5,7 +5,7 @@ from typing import Any
 import pandas as pd
 from sklearn.metrics import accuracy_score
 
-from .common import build_classifier, fairness_gaps, fairness_score_from_gaps, prepare_split
+from .common import build_classifier, fit_classifier, fairness_gaps, fairness_score_from_gaps, prepare_split
 
 
 def _minority_group(series: pd.Series) -> str:
@@ -15,8 +15,8 @@ def _minority_group(series: pd.Series) -> str:
 def run_stress_tests(df: pd.DataFrame, model, sensitive_cols: list[str], target_col: str, custom_scenarios: list[dict] | None = None) -> dict[str, Any]:
     prepared = prepare_split(df, target_col)
     if model is None:
-        pipeline = build_classifier(prepared.X_train, model_type="rf")
-        pipeline.fit(prepared.X_train, prepared.y_train)
+        pipeline = build_classifier(prepared.X_train)
+        pipeline = fit_classifier(pipeline, prepared.X_train, prepared.y_train)
     else:
         pipeline = model
     baseline_pred = pd.Series(pipeline.predict(prepared.X_test), index=prepared.y_test.index)
@@ -84,8 +84,8 @@ def run_stress_tests(df: pd.DataFrame, model, sensitive_cols: list[str], target_
                     modified_df.loc[mask, col] = modified_df.loc[mask, col] * (1.0 - mag)
 
         scenario_split = prepare_split(modified_df, target_col)
-        scenario_model = build_classifier(scenario_split.X_train, model_type="rf")
-        scenario_model.fit(scenario_split.X_train, scenario_split.y_train)
+        scenario_model = build_classifier(scenario_split.X_train)
+        scenario_model = fit_classifier(scenario_model, scenario_split.X_train, scenario_split.y_train)
         scenario_pred = pd.Series(scenario_model.predict(scenario_split.X_test), index=scenario_split.y_test.index)
         scenario_accuracy = float(accuracy_score(scenario_split.y_test, scenario_pred))
         scenario_gaps = fairness_gaps(scenario_pred, scenario_split.y_test, modified_df.loc[scenario_split.y_test.index, s_col]) if s_col in modified_df.columns else {"demographic_parity_difference": 0.0, "equal_opportunity_difference": 0.0, "fpr_gap": 0.0}

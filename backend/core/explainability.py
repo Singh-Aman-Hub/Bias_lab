@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .common import build_classifier, prepare_split
+from .common import build_classifier, fit_classifier, prepare_split
 from .feature_intelligence import detect_proxy_features
 
 
@@ -277,8 +277,8 @@ def explain_flagged_decisions(
 
 
 def _build_default(prepared):
-    pipeline = build_classifier(prepared.X_train, model_type="rf")
-    pipeline.fit(prepared.X_train, prepared.y_train)
+    pipeline = build_classifier(prepared.X_train)
+    pipeline = fit_classifier(pipeline, prepared.X_train, prepared.y_train)
     return pipeline
 
 

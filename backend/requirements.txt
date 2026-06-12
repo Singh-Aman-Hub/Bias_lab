@@ -3,6 +3,7 @@ uvicorn[standard]
 pandas>=2.0
 numpy
 scikit-learn>=1.4
+xgboost>=2.0
 shap
 fairlearn
 sqlalchemy
