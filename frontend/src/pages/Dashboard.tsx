@@ -62,7 +62,7 @@ export default function Dashboard() {
             <div className="card" style={{ padding: 32, textAlign: 'left' }}>
                <div className="workflow-brand-badge" style={{ marginBottom: 20, width: 48, height: 48, background: 'rgba(242, 169, 59, 0.1)', color: 'var(--yellow)', borderColor: 'rgba(242, 169, 59, 0.2)' }}><Zap size={24} /></div>
                <h3 style={{ fontSize: '1.1rem', marginBottom: 12 }}>Contrastive Analysis</h3>
-               <p className="helper" style={{ fontSize: '0.9rem', lineHeight: 1.6 }}>Apply counterfactual tests to verify individual fairness by flipping sensitive attributes in real-time.</p>
+               <p className="helper" style={{ fontSize: '0.9rem', lineHeight: 1.6 }}>Apply counterfactual tests to verify individual fairness by flipping sensitive attributes and re-scoring.</p>
             </div>
             <div className="card" style={{ padding: 32, textAlign: 'left' }}>
                <div className="workflow-brand-badge" style={{ marginBottom: 20, width: 48, height: 48, background: 'rgba(53, 201, 138, 0.1)', color: '#35C98A', borderColor: 'rgba(53, 201, 138, 0.2)' }}><Activity size={24} /></div>

@@ -1,10 +1,12 @@
 import { motion } from 'framer-motion';
 
+// Verifiable facts about the tool — not fabricated vanity metrics. These line up with the
+// Trust section (8 engines, the fairness methods, and the public benchmark datasets).
 const stats = [
-  { value: '10K+', label: 'Audits Completed' },
-  { value: '98%', label: 'Detection Accuracy' },
-  { value: '45s', label: 'Avg. Analysis Time' },
-  { value: '12M+', label: 'Records Processed' },
+  { value: '9', label: 'Step Audit Workflow' },
+  { value: '8', label: 'Analysis Engines' },
+  { value: '6', label: 'Fairness Metrics' },
+  { value: '56K+', label: 'Benchmark Records Validated' },
 ];
 
 export default function Stats() {

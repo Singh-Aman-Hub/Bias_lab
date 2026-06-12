@@ -45,20 +45,20 @@ const ForensicBento = () => {
   const cards = [
     {
       icon: Layers,
-      title: 'Deep Neural Layer Mapping',
-      desc: 'Trace decision paths through 12+ hidden layers to pinpoint exactly where bias propagates.',
+      title: 'Feature-Level Attribution',
+      desc: 'SHAP traces which features drive each decision, surfacing exactly where bias enters the model.',
       color: '#34D6C4',
     },
     {
       icon: Gauge,
-      title: 'Real-time Rebalancing Logic',
-      desc: 'Adaptive threshold tuning with <50ms latency preserves accuracy while eliminating disparity.',
+      title: 'Mitigation Sandbox',
+      desc: 'Compare reweighting and threshold-tuning strategies and see the fairness-vs-accuracy trade-off before you ship.',
       color: '#8A93A3',
     },
     {
       icon: Shield,
-      title: 'Regulatory Compliance',
-      desc: 'EU AI Act & GDPR ready. Automated audit trails and documentation for every decision.',
+      title: 'Grounded in Fairness Law',
+      desc: 'Reproducible, documented results built on recognized standards — the EEOC four-fifths rule and disparate-impact analysis.',
       color: '#F0565B',
     },
   ];
@@ -102,7 +102,7 @@ export default function UIOverlay({ navigate }: UIOverlayProps) {
           <h1 className="hero-title">INTEGRITY AT SCALE.</h1>
           <p className="hero-brief">
             AI is a mirror of your data. We ensure that mirror isn&apos;t distorted. Audit,
-            explain, and correct algorithmic bias in real-time.
+            explain, and correct algorithmic bias before you deploy.
           </p>
           <div className="cta-wrapper pointer-events-auto z-50">
             <button
@@ -144,8 +144,8 @@ export default function UIOverlay({ navigate }: UIOverlayProps) {
           <div className="hero-panel">
             <h2 className="hero-title">FORENSIC TRANSPARENCY.</h2>
             <p className="hero-brief">
-              Break open the black box. We surface representation gaps and map the exact
-              architecture of unfairness across deep neural layers.
+              Break open the black box. We surface representation gaps and map exactly where
+              unfairness enters your model — feature by feature, subgroup by subgroup.
             </p>
           </div>
           <ForensicBento />
@@ -162,8 +162,8 @@ export default function UIOverlay({ navigate }: UIOverlayProps) {
         >
           <h2 className="hero-title hero-title-solution">AUTOMATED EQUITY.</h2>
           <p className="hero-brief">
-            Real-time mitigation engines that rebalance logic and tune thresholds without
-            compromising your model&apos;s predictive performance.
+            Mitigation engines that reweight data and tune thresholds, with the
+            fairness-versus-accuracy trade-off made explicit before you deploy.
           </p>
         </motion.div>
       </Section>

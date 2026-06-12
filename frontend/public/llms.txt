@@ -1,7 +1,7 @@
 # BIAS LAB — AI Fairness & Integrity Platform
 
 ## What is BIAS LAB?
-BIAS LAB is an enterprise-grade AI fairness assurance platform. It audits, explains, and mitigates demographic bias in machine learning models used for decision-making (loan approvals, hiring, admissions, etc.).
+BIAS LAB is an AI fairness assurance platform. It audits, explains, and mitigates demographic bias in machine learning models used for decision-making (loan approvals, hiring, admissions, etc.).
 
 ## Key Capabilities
 - Data audit: demographic representation analysis, missing data detection
@@ -19,7 +19,7 @@ BIAS LAB is an enterprise-grade AI fairness assurance platform. It audits, expla
 
 ## Technical Stack
 - Frontend: React 18, TypeScript, Vite, Three.js, Framer Motion
-- Backend: Python FastAPI, scikit-learn, fairlearn, SHAP
+- Backend: Python FastAPI, scikit-learn, XGBoost, fairlearn, SHAP
 - Database: SQLite via SQLAlchemy
 
 ## Links

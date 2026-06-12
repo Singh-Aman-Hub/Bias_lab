@@ -40,7 +40,7 @@ export default function MonitoringDashboard() {
         <img src="/logo.png" alt="BIAS LAB Logo" style={{ width: 80, height: 80, margin: '0 auto 24px', display: 'block' }} />
         <h1 className="page-title">Monitoring Dashboard</h1>
         <p className="helper" style={{ maxWidth: 500, margin: '0 auto 40px' }}>
-          Please select or initialize a project to view real-time fairness monitoring and drift intelligence.
+          Please select or initialize a project to view fairness monitoring and drift intelligence across audit runs.
         </p>
       </div>
     );
@@ -65,7 +65,7 @@ export default function MonitoringDashboard() {
        <div className="page-header" style={{ marginBottom: 32 }}>
           <div>
             <h1 className="page-title">Live Fairness Monitoring</h1>
-            <p className="helper">Real-time tracking of model bias, feature distribution, and drift intelligence.</p>
+            <p className="helper">Tracking of model bias, feature distribution, and drift across audit runs.</p>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
              <div style={{ 
