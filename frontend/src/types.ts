@@ -149,6 +149,8 @@ export interface PipelineFullResult {
   recommendations?: FixRecommendation[];
   sandbox?: SandboxResult;
   scores?: Record<string, number>;
+  model_used?: string;
+  sensitive_policy?: 'attribute-blind' | 'attribute-aware' | 'user_provided_model';
 }
 
 export interface MonitoringEvent {

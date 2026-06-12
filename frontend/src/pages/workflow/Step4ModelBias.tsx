@@ -49,6 +49,24 @@ export default function Step4ModelBias() {
           <div className="kicker">Step 4 of 9</div>
           <h1 className="page-title">Model Bias</h1>
           <p className="page-subtitle">We evaluated the model across different groups to check for disparate impact.</p>
+          {pipelineResults?.sensitive_policy && (
+            <span
+              title={
+                pipelineResults.sensitive_policy === 'attribute-blind'
+                  ? 'The model was trained without the sensitive attributes as inputs (no disparate treatment).'
+                  : pipelineResults.sensitive_policy === 'attribute-aware'
+                    ? 'The model was allowed to use the sensitive attributes as inputs.'
+                    : 'A user-provided model was audited; its feature policy is defined by that model.'
+              }
+              style={{
+                display: 'inline-block', marginTop: 8, padding: '3px 10px', borderRadius: 12,
+                fontSize: '0.75rem', fontWeight: 600, cursor: 'help',
+                border: '1px solid var(--border)', color: 'var(--text-secondary)',
+              }}
+            >
+              Audit mode: {pipelineResults.sensitive_policy.replace(/_/g, ' ')}
+            </span>
+          )}
         </div>
       </div>
 

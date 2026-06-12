@@ -52,6 +52,7 @@ def _run_pipeline(
     model_bytes: bytes | None,
     domain: str,
     positive_label: str | None,
+    exclude_sensitive: bool,
 ) -> None:
     """Background worker: runs all 8 stages and writes result to task_store."""
     import io
@@ -90,12 +91,18 @@ def _run_pipeline(
             df[target_col] = (df[target_col] == pos).astype(int)
 
         # ── Build / load model ────────────────────────────────────────────────
+        # Attribute-blind by default: the model is not allowed to train on the sensitive
+        # columns (no disparate treatment). They stay in `df` for measuring fairness by group.
+        exclude_cols = sensitive_list if exclude_sensitive else None
+        sensitive_policy = "attribute-blind" if exclude_sensitive else "attribute-aware"
         prepared = prepare_split(df, target_col)
         if model_bytes:
             shared_model = load_model_from_bytes(model_bytes)
             model_used = "user_provided"
+            # A user-supplied model defines its own features; we can't enforce blindness.
+            sensitive_policy = "user_provided_model"
         else:
-            shared_model = build_classifier(prepared.X_train)
+            shared_model = build_classifier(prepared.X_train, exclude_cols=exclude_cols)
             shared_model = fit_classifier(shared_model, prepared.X_train, prepared.y_train)
             model_used = "built_in_xgb"
 
@@ -128,7 +135,9 @@ def _run_pipeline(
         )
 
         # ── Stage 7: Stress Tests ─────────────────────────────────────────────
-        stress = run_stress_tests(df, shared_model, sensitive_list, target_col)
+        # Scenario models are retrained on perturbed data — keep them attribute-blind too,
+        # so they stay consistent with the baseline shared model.
+        stress = run_stress_tests(df, shared_model, sensitive_list, target_col, exclude_cols=exclude_cols)
 
         # ── Scores & Decision Calculation ─────────────────────────────────────
         data_bias_score = round(100 * (1 - data_audit.get("max_gap", 0.0)))
@@ -189,6 +198,7 @@ def _run_pipeline(
             "counterfactual": counterfactual,
             "stress": stress,
             "model_used": model_used,
+            "sensitive_policy": sensitive_policy,
         }
 
         # ── Persist to DB ──────────────────────────────────────────────────────
@@ -275,6 +285,7 @@ async def run_all(
     metric_priority: str = Form(default="balanced"),
     domain: str = Form(default="general"),
     positive_label: str = Form(default=""),
+    exclude_sensitive: str = Form(default="true"),
     custom_model_file: UploadFile | None = None,
 ) -> dict[str, str]:
     """
@@ -343,6 +354,7 @@ async def run_all(
         model_bytes=model_bytes,
         domain=domain,
         positive_label=positive_label or None,
+        exclude_sensitive=str(exclude_sensitive).strip().lower() not in ("false", "0", "no", ""),
     )
 
     return {"task_id": task_id, "status": "processing"}

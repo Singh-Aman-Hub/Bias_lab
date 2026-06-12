@@ -228,9 +228,18 @@ def prepare_split(df: pd.DataFrame, target_col: str, random_state: int = 42, pos
     return PreparedData(X_train, X_test, y_train, y_test, feature_columns, numeric_features, categorical_features)
 
 
-def build_classifier(X_train: pd.DataFrame, model_type: str = DEFAULT_MODEL_TYPE) -> Pipeline:
-    numeric_features = [col for col in X_train.columns if pd.api.types.is_numeric_dtype(X_train[col])]
-    categorical_features = [col for col in X_train.columns if col not in numeric_features]
+def build_classifier(X_train: pd.DataFrame, model_type: str = DEFAULT_MODEL_TYPE, exclude_cols: list[str] | None = None) -> Pipeline:
+    # Columns the model must NOT learn from — typically the sensitive attributes, so the
+    # model can't make a decision *directly* on race/sex (disparate treatment). They are
+    # only dropped from the feature transformers here; callers may still pass frames that
+    # contain them (e.g. the counterfactual flip test) — remainder="drop" ignores them.
+    exclude = set(exclude_cols or [])
+    feature_cols = [c for c in X_train.columns if c not in exclude]
+    # Safety: never exclude away every feature (degenerate dataset) — fall back to all.
+    if not feature_cols:
+        feature_cols = list(X_train.columns)
+    numeric_features = [col for col in feature_cols if pd.api.types.is_numeric_dtype(X_train[col])]
+    categorical_features = [col for col in feature_cols if col not in numeric_features]
     numeric_pipeline = Pipeline(
         steps=[
             ("imputer", SimpleImputer(strategy="median")),

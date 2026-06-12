@@ -12,10 +12,10 @@ def _minority_group(series: pd.Series) -> str:
     return str(series.value_counts().idxmin())
 
 
-def run_stress_tests(df: pd.DataFrame, model, sensitive_cols: list[str], target_col: str, custom_scenarios: list[dict] | None = None) -> dict[str, Any]:
+def run_stress_tests(df: pd.DataFrame, model, sensitive_cols: list[str], target_col: str, custom_scenarios: list[dict] | None = None, exclude_cols: list[str] | None = None) -> dict[str, Any]:
     prepared = prepare_split(df, target_col)
     if model is None:
-        pipeline = build_classifier(prepared.X_train)
+        pipeline = build_classifier(prepared.X_train, exclude_cols=exclude_cols)
         pipeline = fit_classifier(pipeline, prepared.X_train, prepared.y_train)
     else:
         pipeline = model
@@ -84,7 +84,7 @@ def run_stress_tests(df: pd.DataFrame, model, sensitive_cols: list[str], target_
                     modified_df.loc[mask, col] = modified_df.loc[mask, col] * (1.0 - mag)
 
         scenario_split = prepare_split(modified_df, target_col)
-        scenario_model = build_classifier(scenario_split.X_train)
+        scenario_model = build_classifier(scenario_split.X_train, exclude_cols=exclude_cols)
         scenario_model = fit_classifier(scenario_model, scenario_split.X_train, scenario_split.y_train)
         scenario_pred = pd.Series(scenario_model.predict(scenario_split.X_test), index=scenario_split.y_test.index)
         scenario_accuracy = float(accuracy_score(scenario_split.y_test, scenario_pred))

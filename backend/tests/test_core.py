@@ -117,6 +117,29 @@ def test_fairness_score_from_gaps():
     assert fairness_score_from_gaps(gaps_low) == 100.0
 
 
+def test_build_classifier_excludes_sensitive_features():
+    # An attribute-blind model must not change its predictions when only the sensitive
+    # attribute is flipped — proving it never trained on it.
+    df = generate_loan_dataset(rows=600)
+    prep = prepare_split(df, "approved")
+    blind = build_classifier(prep.X_train, exclude_cols=["gender"])
+    blind = fit_classifier(blind, prep.X_train, prep.y_train)
+    flipped = prep.X_test.copy()
+    g = df.loc[prep.X_test.index, "gender"]
+    other = {v: w for v in g.unique() for w in g.unique() if v != w}
+    flipped["gender"] = g.map(lambda v: other.get(v, v))
+    assert (blind.predict(prep.X_test) == blind.predict(flipped)).all()
+
+
+def test_build_classifier_excluding_all_features_falls_back():
+    # Degenerate: excluding every column must not crash — fall back to using all.
+    df = pd.DataFrame({"a": [0, 1, 0, 1] * 10, "y": [0, 1, 0, 1] * 10})
+    prep = prepare_split(df, "y")
+    model = build_classifier(prep.X_train, exclude_cols=["a"])
+    model = fit_classifier(model, prep.X_train, prep.y_train)
+    assert len(model.predict(prep.X_test)) == len(prep.X_test)
+
+
 def test_resolve_positive_label_picks_favorable():
     assert resolve_positive_label(["approved", "denied"]) == "approved"
     assert resolve_positive_label(["<=50K", ">50K"]) == ">50K"
