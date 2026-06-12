@@ -127,11 +127,17 @@ def _run_pipeline(
         # ── Stage 5: Narrative Summary ────────────────────────────────────────
         explain_summary = generate_narrative_summary(explanations, sensitive_list, domain=domain)
 
-        # ── Stage 6: Counterfactual (first sensitive col) ─────────────────────
+        # ── Stage 6: Counterfactual (per sensitive attribute) ─────────────────
+        # Compute one result per sensitive column (all on the same shared model) so the
+        # Step 6 attribute selector can switch between real results, not relabel one.
         primary_sensitive_col = sensitive_list[0] if sensitive_list else target_col
-        counterfactual = run_counterfactual_test(
-            df, shared_model, primary_sensitive_col, target_col,
-            metric_weights=metric_weights,
+        counterfactual_by_attribute: dict[str, Any] = {}
+        for col in (sensitive_list or [target_col]):
+            counterfactual_by_attribute[col] = run_counterfactual_test(
+                df, shared_model, col, target_col, metric_weights=metric_weights,
+            )
+        counterfactual = counterfactual_by_attribute.get(primary_sensitive_col) or run_counterfactual_test(
+            df, shared_model, primary_sensitive_col, target_col, metric_weights=metric_weights,
         )
 
         # ── Stage 7: Stress Tests ─────────────────────────────────────────────
@@ -196,6 +202,7 @@ def _run_pipeline(
             "explanations": explanations,
             "explain_summary": explain_summary,
             "counterfactual": counterfactual,
+            "counterfactual_by_attribute": counterfactual_by_attribute,
             "stress": stress,
             "model_used": model_used,
             "sensitive_policy": sensitive_policy,

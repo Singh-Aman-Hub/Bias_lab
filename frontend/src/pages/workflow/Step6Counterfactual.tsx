@@ -36,7 +36,9 @@ export default function Step6Counterfactual() {
     );
   }
 
-  const cfResult = counterfactualResult as CounterfactualResult & { flip_breakdown?: Record<string, { rate: number; flips: number; total: number }>; interpretation?: string };
+  // Use the result computed for the *selected* attribute (the dropdown actually switches
+  // data now), falling back to the primary result if a per-attribute entry is missing.
+  const cfResult = (pipelineResults.counterfactual_by_attribute?.[sensitiveCol] ?? counterfactualResult) as CounterfactualResult & { flip_breakdown?: Record<string, { rate: number; flips: number; total: number }>; interpretation?: string };
   const { flip_rate, flip_breakdown, interpretation } = cfResult;
 
   return (
@@ -95,7 +97,7 @@ export default function Step6Counterfactual() {
 
       <div className="card" style={{ marginBottom: 24 }}>
         <div className="section-title">Individual record flips</div>
-        {(!counterfactualResult.sample_flips || counterfactualResult.sample_flips.length === 0) ? (
+        {(!cfResult.sample_flips || cfResult.sample_flips.length === 0) ? (
           <div className="helper">No individual flips identified for the current selection.</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
@@ -110,7 +112,7 @@ export default function Step6Counterfactual() {
                 </tr>
               </thead>
               <tbody>
-                {(counterfactualResult.sample_flips as unknown as Array<{ record_id: number; original_decision: string; flipped_decision: string; original_value: string; flipped_value: string }>).map((flip, i: number) => {
+                {(cfResult.sample_flips as unknown as Array<{ record_id: number; original_decision: string; flipped_decision: string; original_value: string; flipped_value: string }>).map((flip, i: number) => {
                   const isFlipped = flip.original_decision !== flip.flipped_decision;
                   return (
                     <tr key={i} style={{ borderBottom: '0.5px solid var(--border)', backgroundColor: isFlipped ? 'rgba(240, 86, 91, 0.14)' : 'transparent' }}>

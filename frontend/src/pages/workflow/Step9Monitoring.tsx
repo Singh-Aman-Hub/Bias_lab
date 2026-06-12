@@ -86,6 +86,10 @@ export default function Step9Monitoring() {
   const [driftFile, setDriftFile] = useState<File | null>(null);
   const [driftReport, setDriftReport] = useState<DriftReportData | null>(null);
   const [driftLoading, setDriftLoading] = useState(false);
+  // The What-if Sandbox has its own upload + result so it never clobbers the drift check above.
+  const [sandboxFile, setSandboxFile] = useState<File | null>(null);
+  const [sandboxReport, setSandboxReport] = useState<DriftReportData | null>(null);
+  const [sandboxLoading, setSandboxLoading] = useState(false);
   const [flags, setFlags] = useState<FairnessFlag[]>([]);
   const [viewMode, setViewMode] = useState<'overall' | 'group'>('overall');
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -381,39 +385,39 @@ export default function Step9Monitoring() {
             <p className="helper" style={{ marginBottom:16 }}>Upload a potential future dataset to simulate drift and predict fairness impacts without affecting your production logs.</p>
             <div style={S.driftBox}>
               <div style={{ flex:1 }}>
-                <input type="file" className="input" onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDriftFile(e.target.files?.[0] || null)} accept=".csv" />
+                <input type="file" className="input" onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSandboxFile(e.target.files?.[0] || null)} accept=".csv" />
                 <button className="btn btn-primary" style={{ marginTop:12 }} onClick={async () => {
-                  if (!driftFile) return;
-                  setDriftLoading(true);
+                  if (!sandboxFile) return;
+                  setSandboxLoading(true);
                   const fd = new FormData();
-                  fd.append('file', driftFile);
+                  fd.append('file', sandboxFile);
                   try {
                     const r = await formApi.post(`/monitoring/project/${projectId}/simulate-data`, fd);
-                    setDriftReport(r.data);
+                    setSandboxReport(r.data);
                   } finally {
-                    setDriftLoading(false);
+                    setSandboxLoading(false);
                   }
-                }} disabled={!driftFile || driftLoading}>
-                  <Activity size={14} /> {driftLoading ? 'Simulating...' : 'Run Simulation'}
+                }} disabled={!sandboxFile || sandboxLoading}>
+                  <Activity size={14} /> {sandboxLoading ? 'Simulating...' : 'Run Simulation'}
                 </button>
               </div>
-              {driftReport && driftReport.status === 'simulation_complete' && (
-                <div style={{ flex:1, padding:16, borderRadius:12, border:`0.5px solid ${driftReport.drift_results?.drift_alert ? 'rgba(240, 86, 91,0.45)' : 'rgba(52, 214, 196,0.45)'}`, background: driftReport.drift_results?.drift_alert ? 'rgba(240, 86, 91,0.1)' : 'rgba(52, 214, 196,0.1)' }}>
+              {sandboxReport && sandboxReport.status === 'simulation_complete' && (
+                <div style={{ flex:1, padding:16, borderRadius:12, border:`0.5px solid ${sandboxReport.drift_results?.drift_alert ? 'rgba(240, 86, 91,0.45)' : 'rgba(52, 214, 196,0.45)'}`, background: sandboxReport.drift_results?.drift_alert ? 'rgba(240, 86, 91,0.1)' : 'rgba(52, 214, 196,0.1)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <div style={{ fontWeight:600, color: driftReport.drift_results?.drift_alert ? '#F0565B' : 'var(--accent)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {driftReport.drift_results?.drift_alert ? <AlertTriangle size={16} /> : <CheckCircle size={16} />}
+                    <div style={{ fontWeight:600, color: sandboxReport.drift_results?.drift_alert ? '#F0565B' : 'var(--accent)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {sandboxReport.drift_results?.drift_alert ? <AlertTriangle size={16} /> : <CheckCircle size={16} />}
                       Simulation Result
                     </div>
                     <div className="pill" style={{ background: 'var(--bg)', color: 'var(--accent)', fontWeight: 800 }}>
-                       Pred. Fairness: {driftReport.predicted_fairness}
+                       Pred. Fairness: {sandboxReport.predicted_fairness}
                     </div>
                   </div>
-                  <div style={{ fontSize:'0.85rem', color:'var(--text-secondary)', marginBottom: 12 }}>{driftReport.drift_results?.drift_message}</div>
-                  
-                  {(driftReport.drift_results?.root_cause?.length ?? 0) > 0 && (
+                  <div style={{ fontSize:'0.85rem', color:'var(--text-secondary)', marginBottom: 12 }}>{sandboxReport.drift_results?.drift_message}</div>
+
+                  {(sandboxReport.drift_results?.root_cause?.length ?? 0) > 0 && (
                     <div style={{ marginTop: 12 }}>
                       <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', marginBottom: 6 }}>Predicted Drift Drivers</div>
-                      {driftReport.drift_results?.root_cause?.map((rc: { feature: string; change: number }, idx: number) => (
+                      {sandboxReport.drift_results?.root_cause?.map((rc: { feature: string; change: number }, idx: number) => (
                         <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', padding: '4px 0' }}>
                           <span>{rc.feature}</span>
                           <span style={{ fontWeight: 600 }}>{(rc.change * 100).toFixed(1)}% shift</span>

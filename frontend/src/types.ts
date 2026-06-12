@@ -157,6 +157,7 @@ export interface PipelineFullResult {
   explanations?: ExplanationRecord[];
   explain_summary?: string;
   counterfactual?: CounterfactualResult;
+  counterfactual_by_attribute?: Record<string, CounterfactualResult>;
   stress?: StressTestResult;
   recommendations?: FixRecommendation[];
   sandbox?: SandboxResult;
