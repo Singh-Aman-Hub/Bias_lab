@@ -154,6 +154,8 @@ export default function Step2Config() {
         const fd = new FormData();
         fd.append('sensitive_cols', sensitiveCols.join(','));
         fd.append('target_col', targetCol);
+        fd.append('domain', domain);
+        fd.append('metric_priority', metricPriority);
         await formApi.patch(`/project/${projectId}/config`, fd);
       } catch (configErr) {
         console.warn('Could not persist config, continuing anyway:', configErr);

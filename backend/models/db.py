@@ -28,6 +28,9 @@ class Project(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     sensitive_columns: Mapped[list[str]] = mapped_column(JSON, default=list)
     target_column: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Fairness priority chosen in Step 2 (balanced / equal_opportunity_first / demographic_parity_first).
+    # Nullable so the startup auto-migration can add it to existing DBs; reads default to "balanced".
+    metric_priority: Mapped[str | None] = mapped_column(String(40), default="balanced", nullable=True)
 
     dataset_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     model_path: Mapped[str | None] = mapped_column(String(500), nullable=True)

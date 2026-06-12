@@ -133,6 +133,7 @@ async def list_projects(db: Session = Depends(get_db)) -> list[dict[str, Any]]:
             "id": p.id,
             "name": p.name,
             "domain": p.domain,
+            "metric_priority": p.metric_priority or "balanced",
             "sensitive_columns": p.sensitive_columns,
             "target_column": p.target_column,
             "max_step": p.max_step,
@@ -145,18 +146,25 @@ async def update_project_config(
     project_id: int,
     sensitive_cols: str = Form(...),
     target_col: str = Form(...),
+    domain: str = Form(default=""),
+    metric_priority: str = Form(default=""),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    
+
     sensitive_list = [col.strip() for col in sensitive_cols.split(",") if col.strip()]
     project.sensitive_columns = sensitive_list
     project.target_column = target_col
-    
+    # Persist the Step 2 choices so the project remembers them (only overwrite when sent).
+    if domain:
+        project.domain = domain
+    if metric_priority:
+        project.metric_priority = metric_priority
+
     # If they change config, they shouldn't jump past Step 3 until they re-run analysis
-    project.max_step = 2 
+    project.max_step = 2
     db.commit()
     return {"status": "updated"}
 
