@@ -305,6 +305,16 @@ async def run_all(
     df_bytes = await file.read()
     sensitive_list = [col.strip() for col in sensitive_cols.split(",") if col.strip()]
 
+    # ── Size guard (defense-in-depth; the frontend also caps uploads) ─────────
+    MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+    if len(df_bytes) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File is too large ({len(df_bytes) // (1024 * 1024)} MB). The limit is {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
+        )
+    if not df_bytes:
+        raise HTTPException(status_code=400, detail="The uploaded file is empty.")
+
     # ── Fail fast on an unusable dataset, with a clear message ────────────────
     # Validate the schema + target up front (cheap: header + the target column only) so a
     # multiclass / continuous / missing target is rejected immediately instead of producing

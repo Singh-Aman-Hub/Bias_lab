@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import { api } from '../../api/client';
-import { ArrowRight, Database, LayoutGrid } from 'lucide-react';
+import { parseCsvHeader, splitCsvRows, validateCsvFile, validateCsvContent } from '../../utils/csv';
+import { ArrowRight, Database, LayoutGrid, AlertTriangle } from 'lucide-react';
 
 interface DemoDataset {
   name: string;
@@ -21,6 +22,7 @@ export default function Step1Upload() {
   const [headers, setHeaders] = useState<string[]>([]);
   const [rowCount, setRowCount] = useState<number>(0);
   const [status] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [demoDatasets, setDemoDatasets] = useState<DemoDataset[]>([]);
   const [loadingDemo, setLoadingDemo] = useState(false);
   const navigate = useNavigate();
@@ -34,19 +36,23 @@ export default function Step1Upload() {
   useEffect(() => {
     if (file && headers.length === 0) {
       file.text().then((text) => {
-        const lines = text.trim().split(/\r?\n/);
-        setRowCount(Math.max(lines.length - 1, 0));
-        setHeaders(lines[0]?.split(',') ?? []);
+        setRowCount(Math.max(splitCsvRows(text).length - 1, 0));
+        setHeaders(parseCsvHeader(text));
       }).catch(console.error);
     }
   }, [file, headers.length]);
 
   const parseFile = async (selected: File) => {
-    setFile(selected);
+    // Validate before accepting the file (extension + size), then validate its contents.
+    const fileErr = validateCsvFile(selected);
+    if (fileErr) { setError(fileErr); return; }
     const text = await selected.text();
-    const lines = text.trim().split(/\r?\n/);
-    setRowCount(Math.max(lines.length - 1, 0));
-    setHeaders(lines[0]?.split(',') ?? []);
+    const contentErr = validateCsvContent(text);
+    if (contentErr) { setError(contentErr); return; }
+    setError(null);
+    setFile(selected);
+    setRowCount(Math.max(splitCsvRows(text).length - 1, 0));
+    setHeaders(parseCsvHeader(text));
   };
 
   const onDrop = async (event: React.DragEvent<HTMLDivElement>) => {
@@ -89,10 +95,16 @@ export default function Step1Upload() {
             <label htmlFor="file-upload" className="btn btn-secondary" style={{ marginTop: 16, cursor: 'pointer' }}>
               Browse Files
             </label>
-            {file && (
+            {file && !error && (
               <div style={{ marginTop: 16, padding: 12, background: 'rgba(52, 214, 196, 0.1)', borderRadius: 8 }}>
                 <strong style={{ color: 'var(--accent)' }}>Loaded {file.name}</strong>
                 <p className="helper" style={{ margin: '4px 0 0' }}>Detected {rowCount.toLocaleString()} rows and {headers.length} columns.</p>
+              </div>
+            )}
+            {error && (
+              <div style={{ marginTop: 16, padding: 12, display: 'flex', gap: 10, alignItems: 'flex-start', background: 'rgba(240, 86, 91, 0.1)', border: '1px solid #F0565B', borderRadius: 8 }}>
+                <AlertTriangle size={18} color="#F0565B" style={{ flexShrink: 0, marginTop: 1 }} />
+                <span style={{ color: '#F0565B', fontSize: '0.9rem' }}>{error}</span>
               </div>
             )}
             {status && <p className="helper" style={{ marginTop: 8 }}>{status}</p>}
@@ -122,9 +134,9 @@ export default function Step1Upload() {
                   const blob = new Blob([csv], { type: 'text/csv' });
                   const f = new File([blob], `${ds.name}.csv`, { type: 'text/csv' });
                   setFile(f);
-                  const lines = csv.trim().split(/\r?\n/);
-                  setRowCount(Math.max(lines.length - 1, 0));
-                  setHeaders(lines[0]?.split(',') ?? []);
+                  setError(null);
+                  setRowCount(Math.max(splitCsvRows(csv).length - 1, 0));
+                  setHeaders(parseCsvHeader(csv));
 
                   const targetCol = res.headers.get('X-Dataset-Target-Col') || '';
                   const sensitiveCols = (res.headers.get('X-Dataset-Sensitive-Cols') || '').split(',').filter(Boolean);

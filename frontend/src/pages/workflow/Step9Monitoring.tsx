@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MonitoringChart from '../../components/MonitoringChart';
 import Toast, { useToast, errMsg } from '../../components/Toast';
+import { parseCsvLine, splitCsvRows } from '../../utils/csv';
 import { useAppContext } from '../../context/AppContext';
 import { formApi, api } from '../../api/client';
 import { AlertTriangle, Flag, Activity, Info, CheckCircle, Clock, TrendingUp, TrendingDown, Shield, ChevronDown, ChevronUp, Zap } from 'lucide-react';
@@ -159,12 +160,12 @@ export default function Step9Monitoring() {
      if (!file) return;
      setIngesting(true);
      try {
-       const text = await file.text(); const lines = text.split(/\r?\n/).filter(l => l.trim()); const rows = lines.slice(1);
+       const rows = splitCsvRows(await file.text()).slice(1);
        const chunkSize = Math.ceil(rows.length / 5);
        for (let i = 0; i < 5; i++) {
          const chunk = rows.slice(i * chunkSize, (i + 1) * chunkSize);
          const predictions = chunk.map(r => {
-           const [record_id, prediction, sensitive_attrs, timestamp] = r.split(',');
+           const [record_id, prediction, sensitive_attrs, timestamp] = parseCsvLine(r);
             let attrs = {}; try { attrs = JSON.parse(sensitive_attrs); } catch { /* ignore */ }
             return { record_id: Number(record_id), prediction: Number(prediction), sensitive_attrs: attrs, timestamp };
          });

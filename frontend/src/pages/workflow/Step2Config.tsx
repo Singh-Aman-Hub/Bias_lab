@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import { formApi } from '../../api/client';
+import { parseCsvHeader, parseCsvLine } from '../../utils/csv';
 import { ArrowRight, ArrowLeft, Loader, AlertTriangle } from 'lucide-react';
 
 const ANALYSIS_STAGES = [
@@ -105,7 +106,7 @@ export default function Step2Config() {
     file.text().then(text => {
       const lines = text.trim().split(/\r?\n/);
       linesRef.current = lines;
-      const parsedHeaders = lines[0]?.split(',').map(h => h.trim()) ?? [];
+      const parsedHeaders = parseCsvHeader(text);
       setHeaders(parsedHeaders);
       // Auto-select last column as target if none selected yet
       if (!targetCol && parsedHeaders.length > 0) {
@@ -125,7 +126,7 @@ export default function Step2Config() {
     }
     const seen = new Set<string>();
     for (let i = 1; i < lines.length && seen.size <= 50; i++) {
-      const cell = (lines[i].split(',')[idx] ?? '').trim();
+      const cell = (parseCsvLine(lines[i])[idx] ?? '').trim();
       if (cell !== '') seen.add(cell);
     }
     const values = Array.from(seen);
