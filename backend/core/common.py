@@ -398,12 +398,14 @@ def group_metrics(y_true: pd.Series, y_pred: pd.Series, group: pd.Series) -> dic
             continue
 
         tn, fp, fn, tp = confusion_matrix(group_true, group_pred, labels=[0, 1]).ravel()
-        denom_pos = max(tp + fn, 1)
-        denom_neg = max(fp + tn, 1)
+        actual_pos = tp + fn  # actual positives in this group
+        actual_neg = fp + tn  # actual negatives in this group
         output[value] = {
             "approval_rate": float(np.mean(group_pred)),
-            "tpr": float(tp / denom_pos),
-            "fpr": float(fp / denom_neg),
+            # TPR/FPR are undefined when a group has no actual positives / negatives — emit
+            # None there rather than a fake 0.0 that reads as a real "0% rate".
+            "tpr": float(tp / actual_pos) if actual_pos > 0 else None,
+            "fpr": float(fp / actual_neg) if actual_neg > 0 else None,
             "accuracy": float(accuracy_score(group_true, group_pred)),
             "sample_size": n,
             "low_confidence": n < MIN_SUBGROUP_SIZE,
@@ -424,12 +426,15 @@ def fairness_gaps(y_pred: pd.Series, y_true: pd.Series, group: pd.Series) -> dic
             continue
 
         tn, fp, fn, tp = confusion_matrix(group_true, group_pred, labels=[0, 1]).ravel()
+        actual_pos, actual_neg = tp + fn, fp + tn
         stats.append({
             "size": n,
             "approval": float(np.mean(group_pred)),
-            "tpr": float(tp / max(tp + fn, 1)),
-            "fpr": float(fp / max(fp + tn, 1)),
-            "fnr": float(fn / max(tp + fn, 1)),
+            # None where undefined (no actual positives/negatives) so a group with no
+            # positives can't inject a fake 0.0 TPR that fabricates a gap.
+            "tpr": (tp / actual_pos) if actual_pos > 0 else None,
+            "fpr": (fp / actual_neg) if actual_neg > 0 else None,
+            "fnr": (fn / actual_pos) if actual_pos > 0 else None,
         })
 
     # Include ALL groups in the gap — never silently drop a protected minority just
@@ -439,15 +444,17 @@ def fairness_gaps(y_pred: pd.Series, y_true: pd.Series, group: pd.Series) -> dic
     if not stats:
         return {"demographic_parity_difference": 0.0, "equal_opportunity_difference": 0.0, "fpr_gap": 0.0, "fnr_gap": 0.0}
 
+    def _gap(key: str) -> float:
+        # Compare only groups where the rate is defined; an undefined rate isn't a gap.
+        vals = [s[key] for s in stats if s[key] is not None]
+        return float(max(vals) - min(vals)) if vals else 0.0
+
     approval_rates = [s["approval"] for s in stats]
-    tprs = [s["tpr"] for s in stats]
-    fprs = [s["fpr"] for s in stats]
-    fnrs = [s["fnr"] for s in stats]
     return {
         "demographic_parity_difference": float(max(approval_rates) - min(approval_rates)),
-        "equal_opportunity_difference": float(max(tprs) - min(tprs)),
-        "fpr_gap": float(max(fprs) - min(fprs)),
-        "fnr_gap": float(max(fnrs) - min(fnrs)),
+        "equal_opportunity_difference": _gap("tpr"),
+        "fpr_gap": _gap("fpr"),
+        "fnr_gap": _gap("fnr"),
     }
 
 

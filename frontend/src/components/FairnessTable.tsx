@@ -1,6 +1,8 @@
 import { motion } from 'framer-motion';
 
-type GroupMetrics = Record<string, { approval_rate: number; tpr: number; fpr: number; accuracy: number; sample_size?: number; low_confidence?: boolean }>;
+type GroupMetrics = Record<string, { approval_rate: number; tpr: number | null; fpr: number | null; accuracy: number; sample_size?: number; low_confidence?: boolean }>;
+
+const pct = (v: number | null | undefined) => (v == null ? '—' : `${(v * 100).toFixed(1)}%`);
 
 export default function FairnessTable({ data }: { data: GroupMetrics }) {
   const rows = Object.entries(data ?? {});
@@ -38,10 +40,10 @@ export default function FairnessTable({ data }: { data: GroupMetrics }) {
                 </span>
               )}
             </td>
-            <td style={{ color: metrics.approval_rate === minApproval ? 'var(--red)' : undefined }}>{(metrics.approval_rate * 100).toFixed(1)}%</td>
-            <td>{(metrics.tpr * 100).toFixed(1)}%</td>
-            <td>{(metrics.fpr * 100).toFixed(1)}%</td>
-            <td style={{ color: metrics.accuracy === minAccuracy ? 'var(--red)' : undefined }}>{(metrics.accuracy * 100).toFixed(1)}%</td>
+            <td style={{ color: metrics.approval_rate === minApproval ? 'var(--red)' : undefined }}>{pct(metrics.approval_rate)}</td>
+            <td>{pct(metrics.tpr)}</td>
+            <td>{pct(metrics.fpr)}</td>
+            <td style={{ color: metrics.accuracy === minAccuracy ? 'var(--red)' : undefined }}>{pct(metrics.accuracy)}</td>
             <td style={{ color: 'var(--text-secondary)' }}>{metrics.sample_size ?? '—'}</td>
           </motion.tr>
         ))}

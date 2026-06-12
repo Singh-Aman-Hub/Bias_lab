@@ -97,17 +97,15 @@ def run_model_bias_analysis(
         sensitive_features = df.loc[prepared.y_test.index, sensitive]
         # Cast pandas/numpy values to native Python types for JSON safety
         def _to_native(d: dict) -> dict:
-            # Handle NaN/Inf which are not JSON serializable in some libraries
-            clean = {}
+            # NaN/Inf mean the metric is undefined for that group (e.g. no positives) —
+            # emit None, not a fake 0.0 that reads as a real measured rate.
+            clean: dict[str, float | None] = {}
             for k, v in d.items():
                 try:
                     val = float(v)
-                    if pd.isna(val) or np.isinf(val):
-                        clean[str(k)] = 0.0
-                    else:
-                        clean[str(k)] = val
+                    clean[str(k)] = None if (pd.isna(val) or np.isinf(val)) else val
                 except (ValueError, TypeError):
-                    clean[str(k)] = 0.0
+                    clean[str(k)] = None
             return clean
 
         try:

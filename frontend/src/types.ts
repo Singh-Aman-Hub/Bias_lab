@@ -78,8 +78,9 @@ export interface LowConfidenceSubgroup {
 
 export interface GroupMetricValue {
   approval_rate: number;
-  tpr: number;
-  fpr: number;
+  // null when the rate is undefined for the group (no actual positives / negatives).
+  tpr: number | null;
+  fpr: number | null;
   accuracy: number;
   sample_size?: number;
   low_confidence?: boolean;

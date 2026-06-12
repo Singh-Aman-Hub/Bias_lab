@@ -200,6 +200,17 @@ def test_disparate_impact_ratio():
     assert one["ratio"] == 1.0 and one["passes_four_fifths"] is True
 
 
+def test_group_metrics_undefined_rate_is_none():
+    # Group "b" has only positive labels -> no actual negatives -> FPR is undefined (None),
+    # not a fake 0.0. TPR stays defined (it has positives).
+    y_true = pd.Series([1, 0, 1, 1, 1])
+    y_pred = pd.Series([1, 0, 1, 0, 1])
+    group = pd.Series(["a", "a", "b", "b", "b"])
+    m = group_metrics(y_true, y_pred, group)
+    assert m["b"]["fpr"] is None
+    assert m["b"]["tpr"] is not None
+
+
 def test_overfit_assessment():
     # Healthy: small gap → no warning
     healthy = overfit_assessment(0.86, 0.84)
