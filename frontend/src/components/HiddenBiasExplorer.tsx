@@ -13,67 +13,12 @@ export interface SubgroupBias {
 }
 
 interface HiddenBiasExplorerProps {
-  subgroups?: SubgroupBias[];
+  // Required: this view must only ever render real, computed subgroup findings —
+  // never placeholder/mock data presented as a real audit result.
+  subgroups: SubgroupBias[];
 }
 
-const mockSubgroups: SubgroupBias[] = [
-  {
-    id: '1',
-    definition: 'Female + Low Income + Rural',
-    attributes: { gender: 'Female', income: 'Low Income', location: 'Rural' },
-    metricDifference: '-32%',
-    metricValue: -0.32,
-    sampleSize: 124,
-    metricName: 'Approval Rate'
-  },
-  {
-    id: '2',
-    definition: 'Male + Low Income + Urban',
-    attributes: { gender: 'Male', income: 'Low Income', location: 'Urban' },
-    metricDifference: '-28%',
-    metricValue: -0.28,
-    sampleSize: 342,
-    metricName: 'Approval Rate'
-  },
-  {
-    id: '3',
-    definition: 'Female + Middle Income + Suburban',
-    attributes: { gender: 'Female', income: 'Middle Income', location: 'Suburban' },
-    metricDifference: '-15%',
-    metricValue: -0.15,
-    sampleSize: 512,
-    metricName: 'Approval Rate'
-  },
-  {
-    id: '4',
-    definition: 'Non-binary + Low Income',
-    attributes: { gender: 'Non-binary', income: 'Low Income' },
-    metricDifference: '-22%',
-    metricValue: -0.22,
-    sampleSize: 89,
-    metricName: 'Approval Rate'
-  },
-  {
-    id: '5',
-    definition: 'Male + High Income + Rural',
-    attributes: { gender: 'Male', income: 'High Income', location: 'Rural' },
-    metricDifference: '+8%',
-    metricValue: 0.08,
-    sampleSize: 210,
-    metricName: 'Approval Rate'
-  },
-  {
-    id: '6',
-    definition: 'Female + High Income + Urban',
-    attributes: { gender: 'Female', income: 'High Income', location: 'Urban' },
-    metricDifference: '+2%',
-    metricValue: 0.02,
-    sampleSize: 430,
-    metricName: 'Approval Rate'
-  }
-];
-
-export default function HiddenBiasExplorer({ subgroups = mockSubgroups }: HiddenBiasExplorerProps) {
+export default function HiddenBiasExplorer({ subgroups }: HiddenBiasExplorerProps) {
   const [selectedAttributes, setSelectedAttributes] = useState<string[]>([]);
 
   // Extract all unique attribute keys available in the data
