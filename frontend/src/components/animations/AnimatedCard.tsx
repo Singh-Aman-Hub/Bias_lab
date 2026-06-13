@@ -6,6 +6,7 @@ interface AnimatedCardProps {
   delay?: number;
   className?: string;
   style?: React.CSSProperties;
+  ariaLabel?: string;
 }
 
 export const cardVariants: Variants = {
@@ -24,13 +25,13 @@ export const cardVariants: Variants = {
 const getSeverityColor = (sev: string) => {
   switch (sev) {
     case 'green': return '#34D6C4';
-    case 'amber': return '#34D6C4';
+    case 'amber': return '#F2A93B';
     case 'red': return '#F0565B';
     default: return 'rgba(52, 214, 196, 0.25)';
   }
 };
 
-export default function AnimatedCard({ children, severity = 'gray', delay = 0, className = 'card', style }: AnimatedCardProps) {
+export default function AnimatedCard({ children, severity = 'gray', delay = 0, className = 'card', style, ariaLabel }: AnimatedCardProps) {
   const borderColor = getSeverityColor(severity);
 
   return (
@@ -39,8 +40,10 @@ export default function AnimatedCard({ children, severity = 'gray', delay = 0, c
       initial="hidden"
       animate="visible"
       custom={delay}
-      whileHover={{ 
-        scale: 1.02, 
+      role={ariaLabel ? 'group' : undefined}
+      aria-label={ariaLabel}
+      whileHover={{
+        scale: 1.02,
         borderColor: severity !== 'gray' ? borderColor : 'rgba(255, 255, 255, 0.1)',
         boxShadow: severity !== 'gray' ? `0 8px 32px ${borderColor}20` : '0 8px 32px rgba(0,0,0,0.2)'
       }}

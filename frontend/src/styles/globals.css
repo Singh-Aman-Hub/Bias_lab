@@ -1568,3 +1568,17 @@ input[type="radio"]:checked::after {
 .hero-panel-extended {
   padding: clamp(1.5rem, 4vw, 2.5rem);
 }
+
+/* ─── Reduced motion ─────────────────────────────────────────────────────────
+   Respect the OS "reduce motion" setting: neutralize CSS animations/transitions and
+   smooth scrolling. (framer-motion is handled via <MotionConfig reducedMotion="user">.) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

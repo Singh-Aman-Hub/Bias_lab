@@ -49,8 +49,15 @@ const MetricCard: React.FC<MetricItemProps> = ({ title, value, description, thre
     }
   };
 
+  const displayValue = isNaN(numValue) ? 'no data' : isPercentage ? `${(numValue * 100).toFixed(1)}%` : numValue.toFixed(2);
+
   return (
-    <AnimatedCard severity={severity} delay={index * 0.1} style={{ padding: '20px' }}>
+    <AnimatedCard
+      severity={severity}
+      delay={index * 0.1}
+      style={{ padding: '20px' }}
+      ariaLabel={`${title}: ${displayValue}, ${interpretation}`}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>{title}</h4>
         <div title={description} style={{ cursor: 'help', color: '#9ca3af' }}>

@@ -68,11 +68,15 @@ export default function WorkflowShell({ children }: { children: React.ReactNode 
                 key={step.id}
                 to={isLocked ? '#' : step.to}
                 className={`workflow-rail-item ${isActive ? 'active' : ''} ${isLocked ? 'locked' : ''}`}
-                aria-label={`Step ${step.id}: ${step.label}`}
+                aria-label={isLocked ? `Step ${step.id}: ${step.label} (locked — complete previous steps to unlock)` : `Step ${step.id}: ${step.label}`}
                 aria-current={isActive ? 'page' : undefined}
                 aria-disabled={isLocked || undefined}
+                // Locked steps are removed from the tab order and ignore keyboard activation,
+                // so pointerEvents:none (which only blocks the mouse) isn't a keyboard trap.
+                tabIndex={isLocked ? -1 : undefined}
+                onClick={isLocked ? (e) => e.preventDefault() : undefined}
                 title={isLocked ? `Complete previous steps to unlock: ${step.label}` : `Step ${step.id}: ${step.label}`}
-                style={{ 
+                style={{
                   opacity: isLocked ? 0.3 : 1,
                   cursor: isLocked ? 'not-allowed' : 'pointer',
                   pointerEvents: isLocked ? 'none' : 'auto'

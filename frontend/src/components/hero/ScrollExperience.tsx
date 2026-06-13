@@ -1,13 +1,22 @@
 import { Canvas } from '@react-three/fiber';
 import { ScrollControls, Scroll } from '@react-three/drei';
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ExperienceScene from './ExperienceScene';
 import UIOverlay from './UIOverlay';
+import HeroStatic from './HeroStatic';
+import { isWebGLAvailable, prefersReducedMotion } from '../../utils/capabilities';
 
 export default function ScrollExperience() {
   const navigate = useNavigate();
-  
+  // Fall back to a static hero when WebGL isn't available or the user prefers reduced motion,
+  // so the headline and CTA still work without the heavy animated 3D scene.
+  const [useStaticHero] = useState(() => !isWebGLAvailable() || prefersReducedMotion());
+
+  if (useStaticHero) {
+    return <HeroStatic navigate={navigate} />;
+  }
+
   return (
     <div className="hero-viewport">
       <Canvas
