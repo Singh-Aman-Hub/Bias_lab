@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import MonitoringChart from '../../components/MonitoringChart';
 import Toast, { useToast, errMsg } from '../../components/Toast';
 import { parseCsvLine, splitCsvRows } from '../../utils/csv';
+import { scoreColor } from '../../utils/score';
 import { useAppContext } from '../../context/AppContext';
 import { formApi, api } from '../../api/client';
 import { AlertTriangle, Flag, Activity, Info, CheckCircle, Clock, TrendingUp, TrendingDown, Shield, ChevronDown, ChevronUp, Zap } from 'lucide-react';
@@ -287,7 +288,7 @@ export default function Step9Monitoring() {
       <div className="s9-stats-row">
         <div className="card" style={S.statCard}>
           <div style={S.statLabel}>Current Score</div>
-          <div style={{...S.statVal, color: current.fairness_score >= 70 ? 'var(--accent)' : 'var(--warning)' }}>{current.fairness_score.toFixed(1)}</div>
+          <div style={{...S.statVal, color: scoreColor(current.fairness_score) }}>{current.fairness_score.toFixed(1)}</div>
           <div style={S.statSub}>out of 100</div>
         </div>
         <div className="card" style={S.statCard}>

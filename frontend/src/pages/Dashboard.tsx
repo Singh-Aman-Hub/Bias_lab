@@ -10,6 +10,7 @@ import {
   Target, Fingerprint, Info, Activity, History
 } from 'lucide-react';
 import { api } from '../api/client';
+import { scoreColor } from '../utils/score';
 import GettingStarted from '../components/GettingStarted';
 
 export default function Dashboard() {
@@ -89,11 +90,7 @@ export default function Dashboard() {
     { name: 'Stress',   score: scores.stress_test_score   ?? 0 },
   ];
 
-  const getScoreColor = (score: number) => {
-    if (score < 50) return '#F0565B';
-    if (score < 75) return '#F2A93B';
-    return '#35C98A';
-  };
+  const getScoreColor = (score: number) => scoreColor(score);
 
   const decisionConfig = {
     'HIGH RISK': { color: '#F0565B', icon: ShieldAlert, bg: 'rgba(240, 86, 91, 0.1)' },

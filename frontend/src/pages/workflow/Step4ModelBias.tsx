@@ -5,6 +5,7 @@ import HiddenBiasExplorer from '../../components/HiddenBiasExplorer';
 import DisparityBar from '../../components/DisparityBar';
 import { useAppContext } from '../../context/AppContext';
 import { ArrowRight, ArrowLeft, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { scoreColor } from '../../utils/score';
 
 export default function Step4ModelBias() {
   const { pipelineResults, biasResult, counterfactualResult, advanceStep } = useAppContext();
@@ -72,7 +73,7 @@ export default function Step4ModelBias() {
 
       <div className="card section-gap">
         <div className="stat-label">Fairness Score</div>
-        <div className={`stat-number text-8xl ${fairnessScore < 70 ? 'text-red' : 'text-accent'}`}>
+        <div className="stat-number text-8xl" style={{ color: scoreColor(fairnessScore) }}>
           {fairnessScore}
         </div>
       </div>

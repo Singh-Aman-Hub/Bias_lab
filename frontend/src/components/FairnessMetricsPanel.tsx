@@ -43,7 +43,7 @@ const MetricCard: React.FC<MetricItemProps> = ({ title, value, description, thre
   const getSeverityColor = (sev: string) => {
     switch (sev) {
       case 'green': return 'var(--accent)';
-      case 'amber': return 'var(--accent)';
+      case 'amber': return 'var(--yellow)';
       case 'red': return 'var(--warning)';
       default: return 'var(--text-secondary)';
     }

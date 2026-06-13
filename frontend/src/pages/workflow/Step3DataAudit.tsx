@@ -3,6 +3,7 @@ import DisparityBar from '../../components/DisparityBar';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import { ArrowRight, ArrowLeft } from 'lucide-react';
+import { scoreColor } from '../../utils/score';
 import type { DataAuditResult, ProxyResult } from '../../types';
 
 export default function Step3DataAudit() {
@@ -85,7 +86,7 @@ export default function Step3DataAudit() {
 
       <div className="card section-gap">
         <div className="stat-label">Data Fairness Score</div>
-        <div className={`stat-number text-8xl ${fairnessScore < 65 ? 'text-red' : 'text-accent'}`}>
+        <div className="stat-number text-8xl" style={{ color: scoreColor(fairnessScore) }}>
           {fairnessScore}
         </div>
         <p className="helper">Representation, missingness, and proxy-feature pressure combined into one forensic score.</p>

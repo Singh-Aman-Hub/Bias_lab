@@ -8,6 +8,7 @@ import {
   ShieldCheck, ShieldAlert, BarChart3, Search
 } from 'lucide-react';
 import { api } from '../api/client';
+import { scoreColor, scoreBgTint, scorePill } from '../utils/score';
 import { useAppContext } from '../context/AppContext';
 
 export default function MonitoringDashboard() {
@@ -68,10 +69,10 @@ export default function MonitoringDashboard() {
             <p className="helper">Tracking of model bias, feature distribution, and drift across audit runs.</p>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
-             <div style={{ 
-               padding: '10px 24px', borderRadius: 100, border: `1px solid ${currentScore > 75 ? 'var(--green)' : 'var(--red)'}`,
-               background: currentScore > 75 ? 'rgba(53, 201, 138, 0.1)' : 'rgba(240, 86, 91, 0.1)',
-               color: currentScore > 75 ? 'var(--green)' : 'var(--red)', fontWeight: 800, letterSpacing: 1
+             <div style={{
+               padding: '10px 24px', borderRadius: 100, border: `1px solid ${scoreColor(currentScore)}`,
+               background: scoreBgTint(currentScore),
+               color: scoreColor(currentScore), fontWeight: 800, letterSpacing: 1
              }}>
                 SCORE: {currentScore.toFixed(1)}
              </div>
@@ -102,8 +103,8 @@ export default function MonitoringDashboard() {
           <div className="card" style={{ textAlign: 'center' }}>
              <div className="stat-label">Model Health</div>
              <div style={{ marginTop: 12 }}>
-                <span className={`pill ${currentScore > 65 ? 'green' : 'red'}`} style={{ fontSize: '0.9rem', padding: '6px 20px' }}>
-                  {currentScore > 65 ? 'HEALTHY' : 'CRITICAL'}
+                <span className={`pill ${scorePill(currentScore).cls}`} style={{ fontSize: '0.9rem', padding: '6px 20px' }}>
+                  {scorePill(currentScore).label}
                 </span>
              </div>
           </div>
