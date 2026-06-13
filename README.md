@@ -411,3 +411,4 @@ MIT — see [LICENSE](LICENSE)
 <div align="center">
   <sub>Built for the Google AI Hackathon 2026</sub>
 </div>
+
