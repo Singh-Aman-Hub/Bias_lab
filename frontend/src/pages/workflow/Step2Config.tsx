@@ -81,7 +81,6 @@ export default function Step2Config() {
     sensitiveCols, setSensitiveCols,
     targetCol, setTargetCol,
     positiveLabel, setPositiveLabel,
-    excludeSensitive, setExcludeSensitive,
     domain, setDomain,
     projectId,
     modelType, setModelType,
@@ -271,30 +270,6 @@ export default function Step2Config() {
               ))}
           </select>
 
-          {/* Attribute-blind policy toggle */}
-          <label
-            style={{
-              display: 'flex', gap: 10, alignItems: 'flex-start', marginTop: 18,
-              padding: 12, borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer',
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={excludeSensitive}
-              onChange={(e) => setExcludeSensitive(e.target.checked)}
-              style={{ marginTop: 3, accentColor: 'var(--accent)' }}
-            />
-            <span>
-              <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                Don't let the model use sensitive attributes (recommended)
-              </span>
-              <span className="helper" style={{ display: 'block', marginTop: 2 }}>
-                The model is trained without race/sex/etc. as inputs, so it can't decide
-                <em> directly</em> on them (avoids disparate treatment). They're still used to
-                measure fairness by group. Turn off only to audit an attribute-aware model.
-              </span>
-            </span>
-          </label>
         </div>
 
         <div className="card">
