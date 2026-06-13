@@ -1,11 +1,18 @@
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import { ArrowRight, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { api } from '../../api/client';
+import ExplainThis from '../../components/ExplainThis';
+import { buildExplainItems } from '../../utils/explainItems';
 
 export default function Step5Explanations() {
-  const { pipelineResults, explainResult, explainSummary, projectId, advanceStep } = useAppContext();
+  const { pipelineResults, explainResult, explainSummary, projectId, domain, advanceStep } = useAppContext();
   const navigate = useNavigate();
+  const explainSummaryItem = useMemo(
+    () => buildExplainItems(pipelineResults, domain).find((i) => i.metric === 'explanations_summary'),
+    [pipelineResults, domain]
+  );
 
   if (!pipelineResults || !explainResult || explainResult.length === 0) {
     return (
@@ -80,6 +87,7 @@ export default function Step5Explanations() {
           <p style={{ fontSize: '1.1rem', lineHeight: 1.5, margin: '8px 0 0' }}>
             {explainSummary}
           </p>
+          {explainSummaryItem && <ExplainThis payload={explainSummaryItem} />}
         </div>
       )}
 

@@ -4,12 +4,18 @@ import { useAppContext } from '../../context/AppContext';
 import { motion } from 'framer-motion';
 import AnimatedNumber from '../../components/animations/AnimatedNumber';
 import ScanningSkeleton from '../../components/animations/ScanningSkeleton';
+import ExplainThis from '../../components/ExplainThis';
+import { buildExplainItems } from '../../utils/explainItems';
 import { ArrowRight, ArrowLeft } from 'lucide-react';
 import type { CustomScenario } from '../../types';
 
 export default function Step7StressTest() {
-  const { pipelineResults, stressResult, biasResult, runModelBias, advanceStep } = useAppContext();
+  const { pipelineResults, stressResult, biasResult, domain, runModelBias, advanceStep } = useAppContext();
   const [loading, setLoading] = useState(false);
+  const stressExplain = useMemo(
+    () => buildExplainItems(pipelineResults, domain).find((i) => i.metric === 'stress_overall'),
+    [pipelineResults, domain]
+  );
   const [customScenarios, setCustomScenarios] = useState<CustomScenario[]>([]);
   const navigate = useNavigate();
   const [newScenario, setNewScenario] = useState({
@@ -163,6 +169,7 @@ export default function Step7StressTest() {
         <div className="section-title">Overall Fragility</div>
         <div className="stat-number">{overall_fragility}</div>
         <div className="helper">Higher values indicate the model's fairness is highly sensitive to changes in data distribution.</div>
+        {stressExplain && <ExplainThis payload={stressExplain} />}
       </div>
 
       <div className="grid-2" style={{ marginBottom: 24, gap: '24px' }}>

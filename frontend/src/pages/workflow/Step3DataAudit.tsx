@@ -1,14 +1,19 @@
 import { useMemo } from 'react';
 import DisparityBar from '../../components/DisparityBar';
+import ExplainThis from '../../components/ExplainThis';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import { ArrowRight, ArrowLeft } from 'lucide-react';
 import { scoreColor } from '../../utils/score';
+import { buildExplainItems } from '../../utils/explainItems';
 import type { DataAuditResult, ProxyResult } from '../../types';
 
 export default function Step3DataAudit() {
-  const { pipelineResults, auditResult: audit, proxyResult: proxy, advanceStep } = useAppContext();
+  const { pipelineResults, auditResult: audit, proxyResult: proxy, domain, advanceStep } = useAppContext();
   const navigate = useNavigate();
+  const explainItems = useMemo(() => buildExplainItems(pipelineResults, domain), [pipelineResults, domain]);
+  const auditExplain = explainItems.find((i) => i.metric === 'data_audit_overall');
+  const proxyExplain = explainItems.find((i) => i.metric === 'data_audit_proxy');
 
   const primarySensitive = useMemo(() => Object.keys(audit?.group_stats || {})[0] || 'group', [audit]);
   const auditData = audit as DataAuditResult & { under_represented_groups?: string[]; risk_reason?: string };
@@ -89,6 +94,7 @@ export default function Step3DataAudit() {
           {fairnessScore}
         </div>
         <p className="helper">Representation, missingness, and proxy-feature pressure combined into one forensic score.</p>
+        {auditExplain && <ExplainThis payload={auditExplain} />}
       </div>
 
       <div className="grid-2" style={{ marginBottom: 16 }}>
@@ -165,6 +171,7 @@ export default function Step3DataAudit() {
               </div>
             )}
           </div>
+          {proxyExplain && proxyFeatures.length > 0 && <ExplainThis payload={proxyExplain} />}
         </div>
       </div>
 

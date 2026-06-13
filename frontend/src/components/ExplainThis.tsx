@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Sparkles, Loader, AlertTriangle } from 'lucide-react';
 import { api } from '../api/client';
+import { useAppContext } from '../context/AppContext';
 
 export interface ExplainPayload {
   metric: string;
@@ -24,14 +25,23 @@ interface ExplainResponse {
  * missing or rate-limited, we show the backend's graceful message, never a crash.
  */
 export default function ExplainThis({ payload }: { payload: ExplainPayload }) {
+  const { getExplanation, cacheExplanation } = useAppContext();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ExplainResponse | null>(null);
 
   const run = async () => {
+    // Cache hit (pre-fetched after analysis) → instant, no API call.
+    const cached = getExplanation(payload.metric);
+    if (cached) {
+      setResult({ explanation: cached, status: 'ok' });
+      return;
+    }
+    // Cache miss → one lazy call, then remember it so re-clicks are instant.
     setLoading(true);
     try {
       const res = await api.post<ExplainResponse>('/narrative/explain-metric', payload);
       setResult(res.data);
+      if (res.data.status === 'ok') cacheExplanation(payload.metric, res.data.explanation);
     } catch {
       setResult({
         explanation: 'Could not reach the explanation service. Please check the backend is running.',

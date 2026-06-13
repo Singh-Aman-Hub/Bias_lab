@@ -1,18 +1,24 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CounterfactualFlip from '../../components/CounterfactualFlip';
 import ScoreGauge from '../../components/ScoreGauge';
 import Toast, { useToast, errMsg } from '../../components/Toast';
+import ExplainThis from '../../components/ExplainThis';
 import { useAppContext } from '../../context/AppContext';
 import { api } from '../../api/client';
+import { buildExplainItems } from '../../utils/explainItems';
 import { ArrowRight, ArrowLeft } from 'lucide-react';
 import type { CounterfactualResult } from '../../types';
 
 export default function Step6Counterfactual() {
-  const { pipelineResults, sensitiveCols, counterfactualResult, projectId, advanceStep } = useAppContext();
+  const { pipelineResults, sensitiveCols, counterfactualResult, projectId, domain, advanceStep } = useAppContext();
   const [sensitiveCol, setSensitiveCol] = useState(sensitiveCols[0] || 'gender');
   const { toast, showToast, clear } = useToast();
   const navigate = useNavigate();
+  const flipExplain = useMemo(
+    () => buildExplainItems(pipelineResults, domain).find((i) => i.metric === 'counterfactual_flip_rate'),
+    [pipelineResults, domain]
+  );
 
   if (!pipelineResults || !counterfactualResult) {
     return (
@@ -82,6 +88,7 @@ export default function Step6Counterfactual() {
       <div className="card" style={{ marginBottom: 24 }}>
         <CounterfactualFlip original="Approved" flipped="Rejected" />
         <p className="helper" style={{ marginTop: 12 }}>{interpretation}</p>
+        {flipExplain && <ExplainThis payload={flipExplain} />}
       </div>
 
       <div className="card" style={{ marginBottom: 24 }}>

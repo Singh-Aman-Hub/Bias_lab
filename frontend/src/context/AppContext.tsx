@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { formApi, api } from '../api/client';
+import { buildExplainItems } from '../utils/explainItems';
 import type {
   DataAuditResult,
   ProxyResult,
@@ -79,6 +80,11 @@ interface AppContextType extends AppState {
   refreshProjects: () => Promise<void>;
   advanceStep: (step: number) => Promise<void>;
   setResultsFromPipeline: (data: PipelineFullResult) => void;
+
+  // Plain-English explanation cache (pre-fetched once per analysis).
+  getExplanation: (metric: string) => string | undefined;
+  cacheExplanation: (metric: string, text: string) => void;
+  explanationsReady: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -112,6 +118,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
+
+  // ── Plain-English explanation cache ─────────────────────────────────────────
+  // Filled by a single batch call right after analysis, so each "Explain this" click is
+  // an instant cache read instead of a fresh API call. Lazy single calls still fall back
+  // (and write here) if the pre-fetch missed or failed.
+  const [explanationCache, setExplanationCache] = useState<Record<string, string>>({});
+  const [explanationsReady, setExplanationsReady] = useState(false);
+  const lastPrefetchSig = React.useRef<string>('');
+
+  const getExplanation = (metric: string) => explanationCache[metric];
+  const cacheExplanation = (metric: string, text: string) =>
+    setExplanationCache((prev) => ({ ...prev, [metric]: text }));
+
+  const prefetchExplanations = async (result: PipelineFullResult) => {
+    setExplanationsReady(false);
+    try {
+      const items = buildExplainItems(result, domain);
+      if (!items.length) { setExplanationsReady(true); return; }
+      const res = await api.post('/narrative/explain-batch', { items });
+      const map = (res.data as { explanations?: Record<string, string> })?.explanations;
+      if (map && typeof map === 'object') {
+        setExplanationCache((prev) => ({ ...prev, ...map }));
+      }
+    } catch {
+      // Non-fatal: buttons fall back to lazy per-metric calls.
+    } finally {
+      setExplanationsReady(true);
+    }
+  };
 
   // ── Unified pipeline ────────────────────────────────────────────────────────
   const runFullAnalysis = async () => {
@@ -235,6 +270,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setStressResult((result as PipelineFullResult).stress ?? null);
     setRecommendResult((result as PipelineFullResult).recommendations ?? null);
     setPipelineResults(result as PipelineFullResult);
+
+    // Pre-fetch every page's plain-English explanation in one batch call (fire-and-forget).
+    // Guard so re-loading the same result (e.g. project auto-load) doesn't re-spend quota.
+    const r = result as Record<string, unknown>;
+    const sig = JSON.stringify({ s: r.scores, m: r.model_used, f: r.fairness_score });
+    if (sig !== lastPrefetchSig.current) {
+      lastPrefetchSig.current = sig;
+      setExplanationCache({});
+      void prefetchExplanations(result as PipelineFullResult);
+    }
   };
 
 
@@ -422,6 +467,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       runMonitoringSimulation, getMonitoringData,
       refreshProjects, advanceStep,
       setResultsFromPipeline,
+      getExplanation, cacheExplanation, explanationsReady,
     }}>
       {children}
     </AppContext.Provider>

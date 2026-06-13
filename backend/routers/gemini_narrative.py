@@ -86,14 +86,53 @@ In one short plain-English paragraph, cover whichever of these the facts support
 5) one concrete next step the user could take."""
 
 
-def _generate_with_gemini(api_key: str, prompt: str) -> str:
+class ExplainBatchRequest(BaseModel):
+    """Many already-computed metrics to explain in ONE Gemini call (pre-fetch on analysis)."""
+
+    items: list[ExplainMetricRequest]
+
+
+def _build_batch_prompt(items: list[ExplainMetricRequest]) -> str:
+    """One prompt covering every metric. Gemini returns a JSON object keyed by metric id."""
+    blocks = []
+    for it in items:
+        facts_json = json.dumps(it.facts, default=str) if it.facts else "{}"
+        value_str = "not provided" if it.value is None else str(it.value)
+        blocks.append(
+            f'- id "{it.metric}" | {it.label} | value: {value_str} | '
+            f'verdict: {it.interpretation or "n/a"} | facts: {facts_json}'
+        )
+    metrics_block = "\n".join(blocks)
+    return f"""You are a fairness analyst explaining ALREADY-COMPUTED metrics to a non-technical user.
+
+A separate statistical engine computed every number below. You are NOT deciding whether bias exists — you ONLY explain the numbers in plain English.
+
+STRICT RULES:
+- Use ONLY the numbers in each item's facts. Never invent, estimate, or assume a statistic.
+- If a fact is missing for some point, skip that point — do not guess.
+- 3-5 short sentences per metric. Plain English, no markdown.
+
+For each metric, cover whichever the facts support: what it means, why this value is/isn't a concern, which group is most affected, which feature may be responsible, and one next step.
+
+AUDIT DOMAIN: {items[0].domain if items else "general"}
+
+METRICS:
+{metrics_block}
+
+Return ONLY a JSON object mapping each metric id (exactly as written above) to its plain-English explanation string. Example: {{"some_id": "explanation text", ...}}"""
+
+
+def _generate_with_gemini(api_key: str, prompt: str, *, as_json: bool = False) -> str:
     from google import genai
+    from google.genai import types
 
     client = genai.Client(api_key=api_key)
     # gemini-2.5-flash has free-tier quota; gemini-2.0-flash returns limit:0 on free keys.
+    config = types.GenerateContentConfig(response_mime_type="application/json") if as_json else None
     response = client.models.generate_content(
         model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
         contents=prompt,
+        config=config,
     )
     return response.text
 
@@ -134,6 +173,33 @@ async def explain_metric(req: ExplainMetricRequest) -> dict[str, str]:
     )
     result["metric"] = req.metric
     return result
+
+
+@router.post("/explain-batch")
+async def explain_batch(req: ExplainBatchRequest) -> dict[str, Any]:
+    """Explain MANY metrics in a single Gemini call. The frontend pre-fetches this once after
+    analysis so each "Explain this" click is an instant cache read, not a new API call."""
+    if not req.items:
+        return {"explanations": {}, "status": "ok"}
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return {"explanations": {}, "status": "api_key_missing"}
+
+    try:
+        raw = _generate_with_gemini(api_key, _build_batch_prompt(req.items), as_json=True)
+        data = json.loads(raw)
+        explanations = {str(k): str(v) for k, v in data.items() if isinstance(v, (str, int, float))}
+        return {"explanations": explanations, "status": "ok"}
+    except ImportError:
+        return {"explanations": {}, "status": "import_error"}
+    except json.JSONDecodeError:
+        # Model returned non-JSON; clients fall back to lazy per-metric calls.
+        return {"explanations": {}, "status": "parse_error"}
+    except Exception as exc:
+        error_str = str(exc)
+        status = "rate_limited" if ("429" in error_str or "quota" in error_str.lower()) else "error"
+        return {"explanations": {}, "status": status}
 
 
 @router.post("/generate")
