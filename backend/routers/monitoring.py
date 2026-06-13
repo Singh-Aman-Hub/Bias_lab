@@ -76,7 +76,6 @@ def ingest_monitoring(payload: IngestPayload, db: Session = Depends(get_db)) -> 
         "demographic_parity_difference": dp_gap,
         "equal_opportunity_difference": 0.0,
         "fpr_gap": 0.0,
-        "fnr_gap": 0.0,
     }
     # Fairness score
     fairness_score = fairness_score_from_gaps(gaps)

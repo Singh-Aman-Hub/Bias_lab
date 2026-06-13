@@ -50,7 +50,8 @@ def run_model_bias_analysis(
         overfit = {"train_accuracy": None, "test_accuracy": round(overall_accuracy, 4),
                    "gap": None, "level": "unknown", "warning": None}
 
-    metrics = {"demographic_parity_difference": 0.0, "equal_opportunity_difference": 0.0, "fpr_gap": 0.0, "fnr_gap": 0.0}
+    metrics = {"demographic_parity_difference": 0.0, "equal_opportunity_difference": 0.0,
+               "fpr_gap": 0.0, "predictive_parity_difference": 0.0}
     for sensitive in sensitive_cols:
         if sensitive not in df.columns:
             continue

@@ -87,6 +87,7 @@ const MetricCard: React.FC<MetricItemProps> = ({ title, value, description, thre
 export default function FairnessMetricsPanel({ biasResult, counterfactualResult }: FairnessMetricsPanelProps) {
   const dpGap = biasResult?.metrics?.demographic_parity_difference ?? NaN;
   const eoGap = biasResult?.metrics?.equal_opportunity_difference ?? NaN;
+  const ppGap = biasResult?.metrics?.predictive_parity_difference ?? NaN;
   const accuracy = biasResult?.overall_accuracy ?? NaN;
   const flipRate = counterfactualResult?.flip_rate ?? NaN;
   const diRatio = biasResult?.disparate_impact?.ratio ?? NaN;
@@ -123,6 +124,16 @@ export default function FairnessMetricsPanel({ biasResult, counterfactualResult 
         />
         <MetricCard
           index={2}
+          title="Predictive Parity Gap"
+          description="The other half of the COMPAS debate: does a 'positive' prediction mean the same thing for every group? This is the gap in precision (of those flagged positive, how many truly were) across groups. A value closer to 0 means the score is equally trustworthy for each group. Predictive parity and equal error rates provably trade off — a fair tool reports both."
+          value={ppGap}
+          thresholds={{
+            good: (v) => Math.abs(v) <= 0.1,
+            moderate: (v) => Math.abs(v) <= 0.2,
+          }}
+        />
+        <MetricCard
+          index={3}
           title="Disparate Impact (80% rule)"
           value={diRatio}
           isPercentage={true}
@@ -133,7 +144,7 @@ export default function FairnessMetricsPanel({ biasResult, counterfactualResult 
           }}
         />
         <MetricCard
-          index={3}
+          index={4}
           title="Counterfactual Flip Rate"
           value={flipRate}
           isPercentage={true}
@@ -144,7 +155,7 @@ export default function FairnessMetricsPanel({ biasResult, counterfactualResult 
           }}
         />
         <MetricCard
-          index={4}
+          index={5}
           title="Overall Accuracy"
           value={accuracy}
           isPercentage={true}

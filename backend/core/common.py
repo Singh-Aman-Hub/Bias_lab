@@ -400,12 +400,17 @@ def group_metrics(y_true: pd.Series, y_pred: pd.Series, group: pd.Series) -> dic
         tn, fp, fn, tp = confusion_matrix(group_true, group_pred, labels=[0, 1]).ravel()
         actual_pos = tp + fn  # actual positives in this group
         actual_neg = fp + tn  # actual negatives in this group
+        predicted_pos = tp + fp  # times this group was flagged positive
         output[value] = {
             "approval_rate": float(np.mean(group_pred)),
             # TPR/FPR are undefined when a group has no actual positives / negatives — emit
             # None there rather than a fake 0.0 that reads as a real "0% rate".
             "tpr": float(tp / actual_pos) if actual_pos > 0 else None,
             "fpr": float(fp / actual_neg) if actual_neg > 0 else None,
+            # Precision / PPV = of those this group was flagged positive, how many truly were.
+            # This is the *predictive-parity / calibration* lens (the other half of the COMPAS
+            # debate); undefined when the group was never flagged positive.
+            "precision": float(tp / predicted_pos) if predicted_pos > 0 else None,
             "accuracy": float(accuracy_score(group_true, group_pred)),
             "sample_size": n,
             "low_confidence": n < MIN_SUBGROUP_SIZE,
@@ -426,7 +431,7 @@ def fairness_gaps(y_pred: pd.Series, y_true: pd.Series, group: pd.Series) -> dic
             continue
 
         tn, fp, fn, tp = confusion_matrix(group_true, group_pred, labels=[0, 1]).ravel()
-        actual_pos, actual_neg = tp + fn, fp + tn
+        actual_pos, actual_neg, predicted_pos = tp + fn, fp + tn, tp + fp
         stats.append({
             "size": n,
             "approval": float(np.mean(group_pred)),
@@ -434,7 +439,9 @@ def fairness_gaps(y_pred: pd.Series, y_true: pd.Series, group: pd.Series) -> dic
             # positives can't inject a fake 0.0 TPR that fabricates a gap.
             "tpr": (tp / actual_pos) if actual_pos > 0 else None,
             "fpr": (fp / actual_neg) if actual_neg > 0 else None,
-            "fnr": (fn / actual_pos) if actual_pos > 0 else None,
+            # Precision / PPV — the predictive-parity (calibration) lens. fnr is intentionally
+            # dropped: FNR = 1 - TPR, so its gap is identical to equal_opportunity_difference.
+            "precision": (tp / predicted_pos) if predicted_pos > 0 else None,
         })
 
     # Include ALL groups in the gap — never silently drop a protected minority just
@@ -442,7 +449,8 @@ def fairness_gaps(y_pred: pd.Series, y_true: pd.Series, group: pd.Series) -> dic
     # The size guard instead drives the ``low_confidence`` flags in group_metrics so
     # the UI can caveat gaps that are driven by statistically thin subgroups.
     if not stats:
-        return {"demographic_parity_difference": 0.0, "equal_opportunity_difference": 0.0, "fpr_gap": 0.0, "fnr_gap": 0.0}
+        return {"demographic_parity_difference": 0.0, "equal_opportunity_difference": 0.0,
+                "fpr_gap": 0.0, "predictive_parity_difference": 0.0}
 
     def _gap(key: str) -> float:
         # Compare only groups where the rate is defined; an undefined rate isn't a gap.
@@ -454,23 +462,27 @@ def fairness_gaps(y_pred: pd.Series, y_true: pd.Series, group: pd.Series) -> dic
         "demographic_parity_difference": float(max(approval_rates) - min(approval_rates)),
         "equal_opportunity_difference": _gap("tpr"),
         "fpr_gap": _gap("fpr"),
-        "fnr_gap": _gap("fnr"),
+        # The predictive-parity / calibration lens: does a "positive" prediction carry the
+        # same precision for every group? Reported alongside the error-rate gaps so the tool
+        # speaks to both halves of the COMPAS debate (it does NOT feed the single score —
+        # the two definitions provably trade off, so collapsing them would mislead).
+        "predictive_parity_difference": _gap("precision"),
     }
 
 
 def fairness_score_from_gaps(gaps: dict[str, float], metric_weights: dict[str, float] | None = None) -> float:
     if metric_weights is None:
+        # fnr_gap dropped (it equalled the TPR/equal-opportunity gap); its old weight of 15
+        # is folded into equal_opportunity so the score is unchanged for existing models.
         metric_weights = {
             "demographic_parity_difference": 25,
-            "equal_opportunity_difference": 20,
+            "equal_opportunity_difference": 35,
             "fpr_gap": 15,
-            "fnr_gap": 15,
         }
     raw_penalty = (
         metric_weights.get("demographic_parity_difference", 25) * gaps.get("demographic_parity_difference", 0.0)
-        + metric_weights.get("equal_opportunity_difference", 20) * gaps.get("equal_opportunity_difference", 0.0)
+        + metric_weights.get("equal_opportunity_difference", 35) * gaps.get("equal_opportunity_difference", 0.0)
         + metric_weights.get("fpr_gap", 15) * gaps.get("fpr_gap", 0.0)
-        + metric_weights.get("fnr_gap", 15) * gaps.get("fnr_gap", 0.0)
     )
     return float(max(0.0, min(100.0, 100.0 - raw_penalty)))
 

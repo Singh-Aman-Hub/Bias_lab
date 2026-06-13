@@ -34,7 +34,9 @@ export interface FairnessGaps {
   demographic_parity_difference: number;
   equal_opportunity_difference: number;
   fpr_gap: number;
-  fnr_gap: number;
+  // Predictive-parity / calibration lens (the other half of the COMPAS debate). Replaces
+  // the dropped fnr_gap, which was identical to equal_opportunity_difference (FNR = 1 - TPR).
+  predictive_parity_difference: number;
 }
 
 export interface OverfitAssessment {
@@ -81,6 +83,8 @@ export interface GroupMetricValue {
   // null when the rate is undefined for the group (no actual positives / negatives).
   tpr: number | null;
   fpr: number | null;
+  // Precision / PPV — predictive-parity (calibration) lens; null when never flagged positive.
+  precision?: number | null;
   accuracy: number;
   sample_size?: number;
   low_confidence?: boolean;

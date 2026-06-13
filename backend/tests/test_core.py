@@ -87,7 +87,9 @@ def test_fairness_gaps():
     assert "demographic_parity_difference" in gaps
     assert "equal_opportunity_difference" in gaps
     assert "fpr_gap" in gaps
-    assert "fnr_gap" in gaps
+    # fnr_gap was redundant (FNR = 1 - TPR) and is replaced by the predictive-parity lens.
+    assert "fnr_gap" not in gaps
+    assert "predictive_parity_difference" in gaps
     assert all(0.0 <= v <= 1.0 for v in gaps.values())
 
 
@@ -112,9 +114,9 @@ def test_group_metrics_flags_small_subgroups():
 
 
 def test_fairness_score_from_gaps():
-    gaps_high = {"demographic_parity_difference": 0.9, "equal_opportunity_difference": 0.9, "fpr_gap": 0.9, "fnr_gap": 0.9}
+    gaps_high = {"demographic_parity_difference": 0.9, "equal_opportunity_difference": 0.9, "fpr_gap": 0.9}
     assert fairness_score_from_gaps(gaps_high) < 50
-    gaps_low = {"demographic_parity_difference": 0.0, "equal_opportunity_difference": 0.0, "fpr_gap": 0.0, "fnr_gap": 0.0}
+    gaps_low = {"demographic_parity_difference": 0.0, "equal_opportunity_difference": 0.0, "fpr_gap": 0.0}
     assert fairness_score_from_gaps(gaps_low) == 100.0
 
 
@@ -209,6 +211,30 @@ def test_group_metrics_undefined_rate_is_none():
     m = group_metrics(y_true, y_pred, group)
     assert m["b"]["fpr"] is None
     assert m["b"]["tpr"] is not None
+
+
+def test_predictive_parity_metric():
+    # Group "a": flagged positive 2x, both truly positive -> precision 1.0.
+    # Group "b": flagged positive 2x, one truly positive -> precision 0.5.
+    # Predictive-parity gap = 1.0 - 0.5 = 0.5. fnr_gap must be gone.
+    y_true = pd.Series([1, 1, 0, 1, 0])
+    y_pred = pd.Series([1, 1, 0, 1, 1])
+    group = pd.Series(["a", "a", "a", "b", "b"])
+    m = group_metrics(y_true, y_pred, group)
+    assert m["a"]["precision"] == 1.0
+    assert m["b"]["precision"] == 0.5
+    gaps = fairness_gaps(y_pred, y_true, group)
+    assert gaps["predictive_parity_difference"] == 0.5
+    assert "fnr_gap" not in gaps
+
+
+def test_precision_none_when_never_flagged_positive():
+    # Group "b" is never predicted positive -> precision undefined (None), not a fake 0.0.
+    y_true = pd.Series([1, 0, 1, 0])
+    y_pred = pd.Series([1, 0, 0, 0])
+    group = pd.Series(["a", "a", "b", "b"])
+    m = group_metrics(y_true, y_pred, group)
+    assert m["b"]["precision"] is None
 
 
 def test_overfit_assessment():
