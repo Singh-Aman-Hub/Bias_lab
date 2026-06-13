@@ -5,6 +5,7 @@ import Toast, { useToast, errMsg } from '../../components/Toast';
 import { parseCsvLine, splitCsvRows } from '../../utils/csv';
 import { scoreColor } from '../../utils/score';
 import { useAppContext } from '../../context/AppContext';
+import ExplainThis, { type ExplainPayload } from '../../components/ExplainThis';
 import { formApi, api } from '../../api/client';
 import { AlertTriangle, Flag, Activity, Info, CheckCircle, Clock, TrendingUp, TrendingDown, Shield, ChevronDown, ChevronUp, Zap } from 'lucide-react';
 import type { FairnessFlag, MonitoringPayload } from '../../types';
@@ -83,7 +84,7 @@ const ICONS: Record<string, React.ReactNode> = {
 };
 
 export default function Step9Monitoring() {
-  const { file, sensitiveCols, targetCol, monitoringResult, getMonitoringData, runMonitoringSimulation, projectId } = useAppContext();
+  const { file, sensitiveCols, targetCol, monitoringResult, getMonitoringData, runMonitoringSimulation, projectId, domain } = useAppContext();
   const [loading, setLoading] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [driftFile, setDriftFile] = useState<File | null>(null);
@@ -249,6 +250,24 @@ export default function Step9Monitoring() {
   const driftDetected = monitorData?.drift_detected;
   const degradationDetected = trendData?.degradation_detected;
 
+  const monitoringExplain: ExplainPayload | null = events?.length
+    ? {
+        metric: 'monitoring_overall',
+        label: 'Production monitoring',
+        value: status,
+        domain,
+        facts: {
+          current_fairness_score: current.fairness_score,
+          trend: trend || 'stable',
+          risk_status: status,
+          incidents: alertCount,
+          drift_warnings: driftCount,
+          stability_score: trendData?.stability_score,
+          degradation_detected: degradationDetected,
+        },
+      }
+    : null;
+
   return (
     <div>
       {(driftDetected || degradationDetected) && (
@@ -343,6 +362,7 @@ export default function Step9Monitoring() {
                   if (idx >= 0) setSelectedEventId(`evt-${idx}`);
                 }} />
             ) : <div className="helper">No monitoring events recorded yet.</div>}
+            {monitoringExplain && <ExplainThis payload={monitoringExplain} />}
           </div>
 
           {/* Drift Detection */}

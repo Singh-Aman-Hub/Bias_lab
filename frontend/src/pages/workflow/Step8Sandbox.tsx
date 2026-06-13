@@ -2,11 +2,29 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, ArrowLeft } from 'lucide-react';
 import SandboxComparison from '../../components/SandboxComparison';
+import ExplainThis, { type ExplainPayload } from '../../components/ExplainThis';
 import { useAppContext } from '../../context/AppContext';
 import type { FixRecommendation } from '../../types';
 
 export default function Step8Sandbox() {
-  const { file, pipelineResults, recommendResult, runSandboxSimulation, sandboxResult, advanceStep } = useAppContext();
+  const { file, pipelineResults, recommendResult, runSandboxSimulation, sandboxResult, domain, advanceStep } = useAppContext();
+  const sandboxExplain: ExplainPayload | null = sandboxResult
+    ? {
+        metric: 'sandbox_recommendation',
+        label: 'Sandbox fix comparison',
+        value: sandboxResult.recommendation,
+        domain,
+        facts: {
+          recommendation: sandboxResult.recommendation,
+          scenarios: (sandboxResult.scenarios || []).map((s) => ({
+            name: s.name,
+            fairness_score: s.fairness_score,
+            accuracy: s.accuracy,
+            risk_level: s.risk_level,
+          })),
+        },
+      }
+    : null;
   const [selected, setSelected] = useState<string[]>([]);
   const [scenarioLoading, setScenarioLoading] = useState(false);
   const [simulateError, setSimulateError] = useState<string | null>(null);
@@ -175,6 +193,7 @@ export default function Step8Sandbox() {
               {sandboxResult.recommendation}
             </p>
           )}
+          {sandboxExplain && <ExplainThis payload={sandboxExplain} />}
         </div>
       )}
 
