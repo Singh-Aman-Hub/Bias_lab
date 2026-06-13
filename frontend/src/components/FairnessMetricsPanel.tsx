@@ -2,7 +2,9 @@ import React from 'react';
 import { HelpCircle } from 'lucide-react';
 import AnimatedCard from './animations/AnimatedCard';
 import AnimatedNumber from './animations/AnimatedNumber';
-import type { ModelBiasResult, CounterfactualResult } from '../types';
+import ExplainThis from './ExplainThis';
+import { useAppContext } from '../context/AppContext';
+import type { ModelBiasResult, CounterfactualResult, GroupMetricValue } from '../types';
 
 interface FairnessMetricsPanelProps {
   biasResult: ModelBiasResult | null;
@@ -19,9 +21,12 @@ interface MetricItemProps {
   };
   isPercentage?: boolean;
   index: number;
+  metricKey: string;
+  domain?: string;
+  facts?: Record<string, unknown>;
 }
 
-const MetricCard: React.FC<MetricItemProps> = ({ title, value, description, thresholds, isPercentage, index }) => {
+const MetricCard: React.FC<MetricItemProps> = ({ title, value, description, thresholds, isPercentage, index, metricKey, domain, facts }) => {
   const numValue = typeof value === 'number' ? value : parseFloat(value as string);
   
   let severity: 'green' | 'amber' | 'red' | 'gray' = 'red';
@@ -80,17 +85,44 @@ const MetricCard: React.FC<MetricItemProps> = ({ title, value, description, thre
       }}>
         {interpretation}
       </div>
+
+      <ExplainThis
+        payload={{
+          metric: metricKey,
+          label: title,
+          value: displayValue,
+          interpretation,
+          domain,
+          facts,
+        }}
+      />
     </AnimatedCard>
   );
 };
 
 export default function FairnessMetricsPanel({ biasResult, counterfactualResult }: FairnessMetricsPanelProps) {
+  const { domain } = useAppContext();
   const dpGap = biasResult?.metrics?.demographic_parity_difference ?? NaN;
   const eoGap = biasResult?.metrics?.equal_opportunity_difference ?? NaN;
   const ppGap = biasResult?.metrics?.predictive_parity_difference ?? NaN;
   const accuracy = biasResult?.overall_accuracy ?? NaN;
   const flipRate = counterfactualResult?.flip_rate ?? NaN;
   const diRatio = biasResult?.disparate_impact?.ratio ?? NaN;
+
+  // Grounding facts for the LLM explainer come straight from the computed pipeline output —
+  // the model only narrates these, it never recomputes them. We feed each card the slice
+  // of per-group numbers relevant to that specific metric.
+  const groupPerf = biasResult?.group_performance ?? {};
+  const primaryAttr = Object.keys(groupPerf)[0];
+  const groups = primaryAttr ? groupPerf[primaryAttr] : {};
+  const byGroup = (field: 'approval_rate' | 'tpr' | 'precision') =>
+    Object.fromEntries(
+      Object.entries(groups as Record<string, GroupMetricValue>)
+        .map(([g, m]) => [g, m[field]] as [string, number | null | undefined])
+        .filter(([, v]) => v != null)
+    );
+  const di = biasResult?.disparate_impact;
+  const lowConf = (biasResult?.low_confidence_subgroups ?? []).map((s) => `${s.attribute}:${s.group}`);
 
   return (
     <div style={{ marginBottom: '24px' }}>
@@ -105,6 +137,9 @@ export default function FairnessMetricsPanel({ biasResult, counterfactualResult 
         <MetricCard
           index={0}
           title="Demographic Parity Gap"
+          metricKey="demographic_parity_difference"
+          domain={domain}
+          facts={{ attribute: primaryAttr, approval_rate_by_group: byGroup('approval_rate'), low_confidence_subgroups: lowConf }}
           value={dpGap}
           description="Difference in selection rates between groups. A value closer to 0 indicates groups are selected at similar rates."
           thresholds={{
@@ -115,6 +150,9 @@ export default function FairnessMetricsPanel({ biasResult, counterfactualResult 
         <MetricCard
           index={1}
           title="Equal Opportunity Gap"
+          metricKey="equal_opportunity_difference"
+          domain={domain}
+          facts={{ attribute: primaryAttr, true_positive_rate_by_group: byGroup('tpr'), low_confidence_subgroups: lowConf }}
           value={eoGap}
           description="Difference in true positive rates between groups. A value closer to 0 indicates qualified individuals from all groups have similar chances."
           thresholds={{
@@ -125,6 +163,9 @@ export default function FairnessMetricsPanel({ biasResult, counterfactualResult 
         <MetricCard
           index={2}
           title="Predictive Parity Gap"
+          metricKey="predictive_parity_difference"
+          domain={domain}
+          facts={{ attribute: primaryAttr, precision_by_group: byGroup('precision'), low_confidence_subgroups: lowConf }}
           description="The other half of the COMPAS debate: does a 'positive' prediction mean the same thing for every group? This is the gap in precision (of those flagged positive, how many truly were) across groups. A value closer to 0 means the score is equally trustworthy for each group. Predictive parity and equal error rates provably trade off — a fair tool reports both."
           value={ppGap}
           thresholds={{
@@ -135,6 +176,15 @@ export default function FairnessMetricsPanel({ biasResult, counterfactualResult 
         <MetricCard
           index={3}
           title="Disparate Impact (80% rule)"
+          metricKey="disparate_impact_ratio"
+          domain={domain}
+          facts={{
+            ratio: di?.ratio,
+            most_favored: di?.most_favored,
+            least_favored: di?.least_favored,
+            passes_four_fifths: di?.passes_four_fifths,
+            attribute: di?.attribute,
+          }}
           value={diRatio}
           isPercentage={true}
           description="EEOC four-fifths rule — the US legal standard. The least-favored group's selection rate divided by the most-favored group's. At or above 80% passes; below 80% is the legal threshold for adverse impact."
@@ -146,6 +196,9 @@ export default function FairnessMetricsPanel({ biasResult, counterfactualResult 
         <MetricCard
           index={4}
           title="Counterfactual Flip Rate"
+          metricKey="counterfactual_flip_rate"
+          domain={domain}
+          facts={{ flip_rate: flipRate, attribute: primaryAttr }}
           value={flipRate}
           isPercentage={true}
           description="Percentage of predictions that change when only the sensitive attribute is modified. A lower flip rate means the model is less reliant on the sensitive attribute."
@@ -157,6 +210,9 @@ export default function FairnessMetricsPanel({ biasResult, counterfactualResult 
         <MetricCard
           index={5}
           title="Overall Accuracy"
+          metricKey="overall_accuracy"
+          domain={domain}
+          facts={{ overall_accuracy: accuracy, overfit_level: biasResult?.overfit?.level }}
           value={accuracy}
           isPercentage={true}
           description="Overall predictive accuracy of the model across all groups."
