@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import DisparityBar from '../../components/DisparityBar';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
@@ -8,7 +8,6 @@ import type { DataAuditResult, ProxyResult } from '../../types';
 
 export default function Step3DataAudit() {
   const { pipelineResults, auditResult: audit, proxyResult: proxy, advanceStep } = useAppContext();
-  const [dismissed, setDismissed] = useState<string[]>([]);
   const navigate = useNavigate();
 
   const primarySensitive = useMemo(() => Object.keys(audit?.group_stats || {})[0] || 'group', [audit]);
@@ -107,12 +106,10 @@ export default function Step3DataAudit() {
         <div className="card">
           <div className="section-title">Under-represented groups</div>
           <div className="notice-list">
-            {underRep.filter((group: string) => !dismissed.includes(group)).map((group: string) => (
+            {underRep.map((group: string) => (
               <div className="notice" key={group}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                  <strong>{group}</strong>
-                  <button className="btn btn-ghost" onClick={() => setDismissed((current) => [...current, group])}>Dismiss</button>
-                </div>
+                <strong>{group}</strong>
+                <div className="helper" style={{ marginTop: 2 }}>Under 20% of the dataset — findings for this group are statistically thin.</div>
               </div>
             ))}
             {underRep.length === 0 && (
@@ -146,13 +143,19 @@ export default function Step3DataAudit() {
           <div className="notice-list" style={{ marginTop: 12 }}>
             {proxyFeatures.map((feature: { feature: string; proxy_score?: number; cluster_proxy_score?: number; combined_score?: number; correlated_with?: string; related_sensitive?: string; warning?: string }) => {
               const score = feature.proxy_score ?? feature.cluster_proxy_score ?? feature.combined_score ?? 0;
+              const clamped = Math.max(0, Math.min(1, score));
+              const pct = Math.round(clamped * 100);
               const correlatedWith = feature.correlated_with ?? feature.related_sensitive ?? 'sensitive attribute';
               return (
                 <div className="notice" key={feature.feature}>
                   <strong>{feature.feature}</strong>
                   <div className="helper">Correlated with {correlatedWith}</div>
-                  <div className="progress-track" style={{ margin: '10px 0' }}><div className="progress-fill" style={{ width: `${Math.max(0, Math.min(1, score)) * 100}%` }} /></div>
-                  <div className="helper">{feature.warning}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', margin: '10px 0 6px' }}>
+                    <span className="helper" style={{ margin: 0 }}>Correlation strength</span>
+                    <strong style={{ fontSize: '0.95rem', color: pct >= 70 ? 'var(--red)' : pct >= 50 ? 'var(--yellow)' : 'var(--accent)' }}>{pct}%</strong>
+                  </div>
+                  <div className="progress-track"><div className="progress-fill" style={{ width: `${clamped * 100}%` }} /></div>
+                  <div className="helper" style={{ marginTop: 8 }}>{feature.warning}</div>
                 </div>
               );
             })}
