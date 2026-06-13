@@ -96,37 +96,55 @@ export interface HiddenBiasEntry {
   metricName: string;
 }
 
-export interface ExplanationRecord {
-  index: number;
-  feature_contributions: Record<string, number>;
-  top_features: string[];
-  rejected_reasons?: string[];
-  is_proxy_risk?: boolean;
-  proxy_reasons?: string[];
+export interface ExplanationReason {
+  feature: string;
+  shap_value: number;
+  is_proxy_risk: boolean;
 }
 
-export interface FlipBreakdown {
-  approved_to_rejected: number;
-  rejected_to_approved: number;
-  unchanged: number;
+export interface ExplanationRecord {
+  record_id: number | string;
+  decision: string;
+  sensitive_attribute: string;
+  top_reasons: ExplanationReason[];
+  human_explanation: string;
+  explanation_type: string;
+}
+
+export interface SampleFlip {
+  record_id: number;
+  original_value: string;
+  flipped_value: string;
+  original_decision: string;
+  flipped_decision: string;
 }
 
 export interface CounterfactualResult {
   flip_rate: number;
-  flip_direction_breakdown: FlipBreakdown;
-  sample_flips?: Array<{ index: number; original: number; flipped: number }>;
+  counterfactual_fairness_score?: number;
+  flip_breakdown?: Record<string, { rate: number; flips: number; total: number }>;
+  interpretation?: string;
+  sample_flips?: SampleFlip[];
 }
 
 export interface StressScenario {
   name: string;
-  accuracy: number;
   fairness_score: number;
-  risk_level: string;
-  notes: string;
+  accuracy: number;
+  fairness_drop: number;
+  fragile: boolean;
+  note: string;
+  baseline_fairness_score: number;
+  baseline_accuracy: number;
+}
+
+export interface StressBaseline {
+  fairness_score: number;
+  accuracy: number;
 }
 
 export interface StressTestResult {
-  baseline: StressScenario;
+  baseline: StressBaseline;
   scenarios: StressScenario[];
   overall_fragility: string;
 }
@@ -139,8 +157,8 @@ export interface FixRecommendation {
   priority: 'high' | 'medium' | 'low';
 }
 
-export interface SandboxScenarioResult {
-  fix_id: string;
+export interface SandboxScenario {
+  name: string;
   accuracy: number;
   fairness_score: number;
   risk_level: string;
@@ -148,7 +166,8 @@ export interface SandboxScenarioResult {
 }
 
 export interface SandboxResult {
-  results: SandboxScenarioResult[];
+  scenarios: SandboxScenario[];
+  recommendation: string;
 }
 
 export interface PipelineFullResult {
@@ -229,5 +248,7 @@ export interface ProjectRecord {
 export interface CustomScenario {
   name: string;
   type: string;
-  params: Record<string, string | number>;
+  target_group: string;
+  sensitive_col: string;
+  magnitude: number;
 }

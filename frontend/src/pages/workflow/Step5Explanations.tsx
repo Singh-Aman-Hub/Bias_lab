@@ -90,7 +90,7 @@ export default function Step5Explanations() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {(explainResult as unknown as Array<{ record_id: number; decision: string; explanation_type: string; sensitive_attribute: string; human_explanation: string; top_reasons: Array<{ feature: string; shap_value: number; is_proxy_risk: boolean }> }>).map((item) => {
+          {(explainResult ?? []).map((item) => {
             const proxyReasons = (item.top_reasons || []).filter((r) => r.is_proxy_risk);
 
             return (

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, ArrowLeft } from 'lucide-react';
 import SandboxComparison from '../../components/SandboxComparison';
 import { useAppContext } from '../../context/AppContext';
-import type { FixRecommendation, SandboxResult } from '../../types';
+import type { FixRecommendation } from '../../types';
 
 export default function Step8Sandbox() {
   const { file, pipelineResults, recommendResult, runSandboxSimulation, sandboxResult, advanceStep } = useAppContext();
@@ -166,13 +166,13 @@ export default function Step8Sandbox() {
         {recommendResult.length === 0 && <span className="helper">No fixes recommended based on the current results.</span>}
       </div>
 
-      {sandboxResult && (sandboxResult as SandboxResult & { scenarios?: unknown[]; recommendation?: string }).scenarios && (
+      {sandboxResult && sandboxResult.scenarios && (
         <div className="card fade-in" style={{ marginBottom: 24 }}>
           <div className="section-title">Sandbox Comparison Results</div>
-          <SandboxComparison scenarios={(sandboxResult as SandboxResult & { scenarios?: Array<{ name: string; accuracy: number; fairness_score: number; risk_level: string; notes: string }> }).scenarios || []} />
-          {(sandboxResult as SandboxResult & { recommendation?: string }).recommendation && (
+          <SandboxComparison scenarios={sandboxResult.scenarios || []} />
+          {sandboxResult.recommendation && (
             <p className="helper" style={{ marginTop: 12 }}>
-              {(sandboxResult as SandboxResult & { recommendation?: string }).recommendation}
+              {sandboxResult.recommendation}
             </p>
           )}
         </div>

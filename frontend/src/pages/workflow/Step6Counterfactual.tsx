@@ -40,7 +40,7 @@ export default function Step6Counterfactual() {
 
   // Use the result computed for the *selected* attribute (the dropdown actually switches
   // data now), falling back to the primary result if a per-attribute entry is missing.
-  const cfResult = (pipelineResults.counterfactual_by_attribute?.[sensitiveCol] ?? counterfactualResult) as CounterfactualResult & { flip_breakdown?: Record<string, { rate: number; flips: number; total: number }>; interpretation?: string };
+  const cfResult: CounterfactualResult = pipelineResults.counterfactual_by_attribute?.[sensitiveCol] ?? counterfactualResult;
   const { flip_rate, flip_breakdown, interpretation } = cfResult;
 
   return (
@@ -114,7 +114,7 @@ export default function Step6Counterfactual() {
                 </tr>
               </thead>
               <tbody>
-                {(cfResult.sample_flips as unknown as Array<{ record_id: number; original_decision: string; flipped_decision: string; original_value: string; flipped_value: string }>).map((flip, i: number) => {
+                {(cfResult.sample_flips ?? []).map((flip, i: number) => {
                   const isFlipped = flip.original_decision !== flip.flipped_decision;
                   return (
                     <tr key={i} style={{ borderBottom: '0.5px solid var(--border)', backgroundColor: isFlipped ? 'rgba(240, 86, 91, 0.14)' : 'transparent' }}>
