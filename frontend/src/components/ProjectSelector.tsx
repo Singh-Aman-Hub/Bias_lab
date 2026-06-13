@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { ChevronDown, Plus, LayoutGrid, Check } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ChevronDown, Plus, LayoutGrid, Check, Wand2 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { formApi } from '../api/client';
 
 export default function ProjectSelector() {
   const { projects, projectId, setProjectId, refreshProjects } = useAppContext();
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newName, setNewName] = useState('');
@@ -75,12 +77,19 @@ export default function ProjectSelector() {
                     </div>
                   ))}
                 </div>
-                <button 
-                  className="btn btn-primary" 
+                <button
+                  className="btn btn-primary"
                   style={{ width: '100%', fontSize: '0.8rem', gap: 6 }}
                   onClick={() => setIsCreating(true)}
                 >
                   <Plus size={14} /> New Project
+                </button>
+                <button
+                  className="btn"
+                  style={{ width: '100%', fontSize: '0.8rem', gap: 6, marginTop: 8 }}
+                  onClick={() => { setIsOpen(false); navigate('/create-project'); }}
+                >
+                  <Wand2 size={14} /> Guided setup (upload + run)
                 </button>
               </>
             ) : (

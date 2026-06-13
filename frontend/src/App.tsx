@@ -19,6 +19,7 @@ const Step9Monitoring = lazy(() => import('./pages/workflow/Step9Monitoring'));
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const MonitoringDashboard = lazy(() => import('./pages/MonitoringDashboard'));
+const CreateProject = lazy(() => import('./pages/CreateProject'));
 const HeroPage = lazy(() => import('./pages/HeroPage'));
 
 export default function App() {
@@ -55,7 +56,8 @@ export default function App() {
             <Suspense fallback={<AnalysisLoading />}>
               <Routes location={location} key={location.pathname}>
                 <Route path="/dashboard" element={<PageTransition locationKey="dash"><Dashboard /></PageTransition>} />
-                
+                <Route path="/create-project" element={<PageTransition locationKey="create"><CreateProject /></PageTransition>} />
+
                 <Route path="/workflow/step-1" element={<PageTransition locationKey="s1"><Step1Upload /></PageTransition>} />
                 <Route path="/workflow/step-2" element={<PageTransition locationKey="s2"><Step2Config /></PageTransition>} />
                 <Route path="/workflow/step-3" element={<PageTransition locationKey="s3"><Step3DataAudit /></PageTransition>} />

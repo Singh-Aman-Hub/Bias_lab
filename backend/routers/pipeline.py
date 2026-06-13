@@ -51,8 +51,8 @@ def _run_pipeline(
     metric_weights: dict[str, float],
     model_bytes: bytes | None,
     domain: str,
-    positive_label: str | None,
-    exclude_sensitive: bool,
+    positive_label: str | None = None,
+    exclude_sensitive: bool = True,
 ) -> None:
     """Background worker: runs all 8 stages and writes result to task_store."""
     import io
