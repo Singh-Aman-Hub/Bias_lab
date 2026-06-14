@@ -70,12 +70,19 @@ def detect_proxy_via_clustering(
             p1, p99 = np.percentile(feature_clean, [1, 99])
             feature_clean = np.clip(feature_clean, p1, p99)
 
+            # Never ask for more clusters than this feature has distinct values,
+            # otherwise KMeans emits a ConvergenceWarning and returns empty clusters.
+            # Use the smaller of n_clusters and the feature's distinct-value count.
+            feature_k = min(n_clusters, len(np.unique(feature_clean)))
+            if feature_k < 2:
+                continue
+
             try:
-                kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+                kmeans = KMeans(n_clusters=feature_k, random_state=42, n_init=10)
                 cluster_labels = kmeans.fit_predict(feature_clean)
 
                 purities: list[float] = []
-                for cluster_id in range(n_clusters):
+                for cluster_id in range(feature_k):
                     cluster_mask = cluster_labels == cluster_id
                     cluster_size = int(cluster_mask.sum())
                     if cluster_size == 0:
