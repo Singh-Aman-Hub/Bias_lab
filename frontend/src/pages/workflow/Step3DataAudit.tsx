@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
-import DisparityBar from '../../components/DisparityBar';
+import { useMemo, useState } from 'react';
 import ExplainThis from '../../components/ExplainThis';
+import ChatHelpButton from '../../components/ChatHelpButton';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import { ArrowRight, ArrowLeft } from 'lucide-react';
@@ -15,7 +15,6 @@ export default function Step3DataAudit() {
   const auditExplain = explainItems.find((i) => i.metric === 'data_audit_overall');
   const proxyExplain = explainItems.find((i) => i.metric === 'data_audit_proxy');
 
-  const primarySensitive = useMemo(() => Object.keys(audit?.group_stats || {})[0] || 'group', [audit]);
   const auditData = audit as DataAuditResult & { under_represented_groups?: string[]; risk_reason?: string };
 
   // Backend risk_level is "Red" | "Yellow" | "Green"; map to human-readable severity.
@@ -31,26 +30,71 @@ export default function Step3DataAudit() {
     return Math.max(0, Math.min(100, base - (Object.keys(audit.missing_data || {}).length * 2)));
   }, [audit, pipelineResults]);
 
-  const chartData = useMemo(() => {
-    if (!audit?.group_stats) return [];
-    const gs = audit.group_stats as unknown as Record<string, Array<{ group: string; positive_rate: number }>>;
-    const firstKey = Object.keys(gs)[0];
-    if (!firstKey) return [];
-    return Object.entries(gs[firstKey]).map(
-      ([group, metrics]) => ({
-        label: group,
-        value: Math.round((metrics.positive_rate ?? 0) * 100)
-      })
-    );
+  // Tab state for selecting which sensitive column to view in the table
+  const sensitiveCols = useMemo(() => {
+    return audit?.group_stats ? Object.keys(audit.group_stats as Record<string, any>) : [];
   }, [audit]);
 
-  const underRep = useMemo(
-    () => (auditData.under_represented_groups ?? []).filter((group: string) => {
-      const value = String(group ?? '').trim().toLowerCase();
-      return value !== '' && value !== 'nan' && value !== 'null' && value !== 'none' && value !== 'undefined';
-    }),
-    [audit]
-  );
+  const [activeCol, setActiveCol] = useState<string>('');
+  const currentCol = activeCol || sensitiveCols[0] || '';
+
+  // Table sorting state
+  const [sortField, setSortField] = useState<'group' | 'count' | 'share' | 'positive_rate'>('count');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const rows = useMemo(() => {
+    if (!audit?.group_stats || !currentCol) return [];
+    const groupStats = audit.group_stats as Record<string, any>;
+    if (!groupStats[currentCol]) return [];
+    
+    const stats = groupStats[currentCol];
+    if (Array.isArray(stats)) {
+      return stats.map((s: any) => ({
+        group: s.group,
+        count: s.count ?? 0,
+        share: s.share ?? s.percentage ?? 0,
+        positive_rate: s.approval_rate ?? s.positive_rate ?? 0,
+        under_represented: !!s.under_represented,
+        low_confidence: !!s.low_confidence,
+      }));
+    }
+    
+    return Object.entries(stats).map(([group, val]: [string, any]) => ({
+      group,
+      count: val.count ?? 0,
+      share: val.share ?? val.percentage ?? 0,
+      positive_rate: val.positive_rate ?? val.approval_rate ?? 0,
+      under_represented: !!val.under_represented,
+      low_confidence: !!val.low_confidence,
+    }));
+  }, [audit, currentCol]);
+
+  const sortedRows = useMemo(() => {
+    const sorted = [...rows];
+    sorted.sort((a, b) => {
+      let valA = a[sortField];
+      let valB = b[sortField];
+
+      if (sortField === 'group') {
+        valA = String(valA).toLowerCase();
+        valB = String(valB).toLowerCase();
+      }
+
+      if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }, [rows, sortField, sortDirection]);
+
+  const handleSort = (field: 'group' | 'count' | 'share' | 'positive_rate') => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
 
   const proxyFeatures = (proxy as ProxyResult & { proxy_features?: Array<{ feature: string; proxy_score?: number; cluster_proxy_score?: number; combined_score?: number; correlated_with?: string; related_sensitive?: string; warning?: string }> })?.proxy_features ?? [];
 
@@ -89,7 +133,10 @@ export default function Step3DataAudit() {
       </div>
 
       <div className="card section-gap">
-        <div className="stat-label">Data Fairness Score</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div className="stat-label">Data Fairness Score</div>
+          <ChatHelpButton section="Data Fairness Score" description="An aggregate score combining representation gaps, missing data, and proxy feature pressure." extraContext={{ fairness_score: fairnessScore, risk_level: audit.risk_level, max_gap: audit.max_gap }} />
+        </div>
         <div className="stat-number text-8xl" style={{ color: scoreColor(fairnessScore) }}>
           {fairnessScore}
         </div>
@@ -97,39 +144,173 @@ export default function Step3DataAudit() {
         {auditExplain && <ExplainThis payload={auditExplain} />}
       </div>
 
-      <div className="grid-2" style={{ marginBottom: 16 }}>
-        <div className="card">
-          <div className="section-title">{primarySensitive} group stats</div>
-          <div style={{ marginTop: 18 }}>
-            <DisparityBar
-              label={`Positive rate · ${primarySensitive}`}
-              groups={chartData.map(d => ({ name: d.label, value: d.value }))}
-              max={100}
-              format={(v) => `${Math.round(v)}%`}
-            />
+      {/* Group Representation section */}
+      <div className="card section-gap">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+          <div>
+            <div className="section-title" style={{ margin: 0 }}>Group Representation & Approval Rates</div>
+            <p className="helper" style={{ marginTop: 4 }}>
+              Distribution and favorable outcome rates across subgroups of selected sensitive attributes.
+            </p>
           </div>
+          <ChatHelpButton
+            section="Under-Represented Groups"
+            description="Groups that have fewer than 30 samples or make up less than 5% of the dataset. Findings for these groups may be statistically unreliable."
+            extraContext={{ sensitive_column: currentCol }}
+          />
         </div>
-        <div className="card">
-          <div className="section-title">Under-represented groups</div>
-          <div className="notice-list">
-            {underRep.map((group: string) => (
-              <div className="notice" key={group}>
-                <strong>{group}</strong>
-                <div className="helper" style={{ marginTop: 2 }}>Under 20% of the dataset — findings for this group are statistically thin.</div>
-              </div>
-            ))}
-            {underRep.length === 0 && (
-              <div className="notice">
-                <span className="helper">No under-represented groups detected after excluding missing values.</span>
-              </div>
-            )}
+
+        {/* Tab switcher for multiple sensitive columns */}
+        {sensitiveCols.length > 1 && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+            {sensitiveCols.map((col) => {
+              const isActive = col === currentCol;
+              const meta = audit?.column_metadata?.[col];
+              return (
+                <button
+                  key={col}
+                  className="btn btn-small"
+                  style={{
+                    backgroundColor: isActive ? 'var(--accent-soft)' : 'rgba(255, 255, 255, 0.02)',
+                    borderColor: isActive ? 'var(--accent)' : 'var(--border)',
+                    color: isActive ? 'var(--accent-strong)' : 'var(--text-secondary)',
+                  }}
+                  onClick={() => {
+                    setActiveCol(col);
+                    setSortField('count');
+                    setSortDirection('desc');
+                  }}
+                >
+                  {col}
+                  {meta?.column_type === 'continuous' && (
+                    <span style={{ marginLeft: 6, fontSize: '0.65rem', opacity: 0.7, textTransform: 'uppercase' }}>
+                      Binned
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Processing Details */}
+        {audit?.column_metadata?.[currentCol] && (
+          <div style={{
+            backgroundColor: 'rgba(255, 255, 255, 0.01)',
+            border: '0.5px solid var(--border)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '8px 12px',
+            marginBottom: 16,
+            fontSize: '0.82rem',
+            display: 'flex',
+            gap: 16,
+            color: 'var(--text-secondary)'
+          }}>
+            <div>
+              Type: <strong style={{ color: 'var(--text-primary)' }}>{audit.column_metadata[currentCol].column_type}</strong>
+            </div>
+            <div style={{ width: 1, backgroundColor: 'var(--border)' }} />
+            <div>
+              Grouping: <strong style={{ color: 'var(--text-primary)' }}>{audit.column_metadata[currentCol].grouping_method}</strong>
+            </div>
+          </div>
+        )}
+
+        {/* Sortable Table */}
+        <div style={{ overflowX: 'auto' }}>
+          <table className="table" style={{ width: '100%' }}>
+            <thead>
+              <tr>
+                <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSort('group')}>
+                  Group Value {sortField === 'group' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                </th>
+                <th style={{ cursor: 'pointer', userSelect: 'none', textAlign: 'right' }} onClick={() => handleSort('count')}>
+                  Sample Count (n) {sortField === 'count' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                </th>
+                <th style={{ cursor: 'pointer', userSelect: 'none', textAlign: 'right' }} onClick={() => handleSort('share')}>
+                  Dataset Share {sortField === 'share' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                </th>
+                <th style={{ cursor: 'pointer', userSelect: 'none', width: '35%' }} onClick={() => handleSort('positive_rate')}>
+                  Positive/Approval Rate {sortField === 'positive_rate' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                </th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedRows.map((row) => {
+                const sharePct = ((row.share ?? 0) * 100).toFixed(1);
+                const positivePct = Math.round((row.positive_rate ?? 0) * 100);
+                return (
+                  <tr key={row.group}>
+                    <td style={{ fontWeight: 600 }}>{row.group}</td>
+                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{row.count.toLocaleString()}</td>
+                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{sharePct}%</td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', minWidth: 40 }}>{positivePct}%</span>
+                        <div className="progress-track" style={{ height: 6, flex: 1, minWidth: 60 }}>
+                          <div
+                            className="progress-fill"
+                            style={{
+                              width: `${positivePct}%`,
+                              background: row.low_confidence 
+                                ? 'linear-gradient(90deg, var(--text-muted), var(--border))'
+                                : 'linear-gradient(90deg, var(--accent), #e9be95)'
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {row.low_confidence && (
+                          <span className="pill yellow" style={{ fontSize: '0.7rem', padding: '2px 8px' }}>
+                            Low Confidence
+                          </span>
+                        )}
+                        {row.under_represented && (
+                          <span className="pill red" style={{ fontSize: '0.7rem', padding: '2px 8px', borderColor: 'rgba(242, 100, 50, 0.4)', background: 'rgba(242, 100, 50, 0.1)', color: '#f26432' }}>
+                            Under-represented
+                          </span>
+                        )}
+                        {!row.low_confidence && !row.under_represented && (
+                          <span className="pill green" style={{ fontSize: '0.7rem', padding: '2px 8px' }}>
+                            Reliable
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Legend */}
+        <div style={{ display: 'flex', gap: 16, marginTop: 16, fontSize: '0.78rem', color: 'var(--text-secondary)', flexWrap: 'wrap', borderTop: '0.5px solid var(--border)', paddingTop: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span className="pill green" style={{ pointerEvents: 'none', padding: '1px 6px', fontSize: '0.65rem' }}>Reliable</span>
+            <span>Group has ≥ 30 samples and ≥ 5% dataset share.</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span className="pill yellow" style={{ pointerEvents: 'none', padding: '1px 6px', fontSize: '0.65rem' }}>Low Confidence</span>
+            <span>Sample size &lt; 30 (excluded from top-level gap calculations).</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span className="pill red" style={{ pointerEvents: 'none', padding: '1px 6px', fontSize: '0.65rem', borderColor: 'rgba(242, 100, 50, 0.4)', background: 'rgba(242, 100, 50, 0.1)', color: '#f26432' }}>Under-represented</span>
+            <span>Dataset share &lt; 5% (high risk of sampling bias).</span>
           </div>
         </div>
       </div>
 
       <div className="grid-2" style={{ marginBottom: 16 }}>
+        {/* Missing Data table */}
         <div className="card">
-          <div className="section-title">Missing data</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="section-title">Missing data</div>
+            <ChatHelpButton section="Missing Data" description="Columns with missing values. High missingness can introduce bias if it correlates with sensitive attributes." />
+          </div>
           <table className="table">
             <thead><tr><th>Column</th><th>% Missing</th><th>Severity</th></tr></thead>
             <tbody>
@@ -143,8 +324,13 @@ export default function Step3DataAudit() {
             </tbody>
           </table>
         </div>
+
+        {/* Proxy risk section */}
         <div className="card">
-          <div className="section-title">Proxy risk</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="section-title">Proxy risk</div>
+            <ChatHelpButton section="Proxy Feature Risk" description="Features that are highly correlated with sensitive attributes and may act as indirect proxies, introducing hidden bias." extraContext={{ proxy_features: proxyFeatures.map((f: any) => f.feature) }} />
+          </div>
           <div className="helper">Features that highly correlate with sensitive attributes.</div>
           <div className="notice-list" style={{ marginTop: 12 }}>
             {proxyFeatures.map((feature: { feature: string; proxy_score?: number; cluster_proxy_score?: number; combined_score?: number; correlated_with?: string; related_sensitive?: string; warning?: string }) => {

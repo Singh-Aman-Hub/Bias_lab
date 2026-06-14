@@ -42,7 +42,7 @@ def _apply_fix(df: pd.DataFrame, fix: dict[str, Any], sensitive_cols: list[str],
         
         # Encode categoricals for SMOTE
         encoders = {}
-        for col in X_mod.select_dtypes(include=["object", "str"]).columns:
+        for col in X_mod.select_dtypes(include=["object", "category", "string"]).columns:
             le = LabelEncoder()
             X_mod[col] = le.fit_transform(X_mod[col].astype(str))
             encoders[col] = le

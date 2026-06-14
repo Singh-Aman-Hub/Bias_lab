@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import { formApi } from '../../api/client';
 import { parseCsvHeader, parseCsvLine } from '../../utils/csv';
-import { ArrowRight, ArrowLeft, Loader, AlertTriangle } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Loader, AlertTriangle, Lightbulb } from 'lucide-react';
+
+// Plan item 10: Auto-suggest sensitive columns from known list
+const SENSITIVE_KEYWORDS = ['gender', 'sex', 'race', 'ethnicity', 'caste', 'religion', 'age', 'disability', 'region', 'zipcode', 'zip', 'nationality', 'citizenship', 'marital', 'pregnancy', 'language', 'color', 'colour', 'tribe', 'class', 'income'];
 
 const ANALYSIS_STAGES = [
   'Scanning dataset for representation gaps',
@@ -91,6 +94,7 @@ export default function Step2Config() {
     runFullAnalysis,
   } = useAppContext();
 
+  const [suggestedSensitiveCols, setSuggestedSensitiveCols] = useState<string[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [targetValues, setTargetValues] = useState<string[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -107,6 +111,11 @@ export default function Step2Config() {
       linesRef.current = lines;
       const parsedHeaders = parseCsvHeader(text);
       setHeaders(parsedHeaders);
+      // Auto-suggest sensitive columns (plan item 10)
+      const suggested = parsedHeaders.filter(h =>
+        SENSITIVE_KEYWORDS.some(kw => h.toLowerCase().includes(kw))
+      );
+      setSuggestedSensitiveCols(suggested);
       // Auto-select last column as target if none selected yet
       if (!targetCol && parsedHeaders.length > 0) {
         setTargetCol(parsedHeaders[parsedHeaders.length - 1]);
@@ -199,7 +208,7 @@ export default function Step2Config() {
     <div>
       <div className="page-header">
         <div>
-          <div className="kicker">Step 2 of 9</div>
+          <div className="kicker">Step 2 of 10</div>
           <h1 className="page-title">Configuration</h1>
           <p className="page-subtitle">Select the sensitive attributes and define how the model should be accessed.</p>
         </div>
@@ -249,7 +258,31 @@ export default function Step2Config() {
             {sensitiveCols.length === 0 && <span className="helper">No attributes selected</span>}
           </div>
 
-          {/* Dropdown Selector */}
+          {/* Auto-suggest banner (plan item 10) */}
+          {suggestedSensitiveCols.filter(s => !sensitiveCols.includes(s)).length > 0 && (
+            <div style={{ 
+              display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12,
+              background: 'rgba(242, 169, 59, 0.08)', border: '1px solid rgba(242, 169, 59, 0.2)',
+              borderRadius: 8, padding: '10px 14px'
+            }}>
+              <Lightbulb size={16} style={{ color: '#F2A93B', flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <span style={{ fontSize: '0.82rem', color: '#F2A93B', fontWeight: 600 }}>Suggested Sensitive Columns: </span>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>We detected potential sensitive attributes. Click to add:</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                  {suggestedSensitiveCols.filter(s => !sensitiveCols.includes(s)).map(col => (
+                    <button key={col} onClick={() => setSensitiveCols([...sensitiveCols, col])} style={{
+                      background: 'rgba(242, 169, 59, 0.12)', border: '1px solid rgba(242, 169, 59, 0.3)',
+                      borderRadius: 12, padding: '2px 10px', fontSize: '0.8rem', color: '#F2A93B',
+                      cursor: 'pointer', fontWeight: 600
+                    }}>
+                      + {col}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
           <select 
             className="select" 
             value="" 

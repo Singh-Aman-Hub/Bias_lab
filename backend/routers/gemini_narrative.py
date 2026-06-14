@@ -93,33 +93,45 @@ class ExplainBatchRequest(BaseModel):
 
 
 def _build_batch_prompt(items: list[ExplainMetricRequest]) -> str:
-    """One prompt covering every metric. Gemini returns a JSON object keyed by metric id."""
+    """One prompt covering every metric. Returns a JSON object keyed by metric id,
+    each value being a rich structured explanation object."""
     blocks = []
     for it in items:
         facts_json = json.dumps(it.facts, default=str) if it.facts else "{}"
         value_str = "not provided" if it.value is None else str(it.value)
         blocks.append(
-            f'- id "{it.metric}" | {it.label} | value: {value_str} | '
-            f'verdict: {it.interpretation or "n/a"} | facts: {facts_json}'
+            f'- id "{it.metric}" | label: "{it.label}" | value: {value_str} | '
+            f'verdict: {it.interpretation or "n/a"} | domain: {it.domain or "general"} | facts: {facts_json}'
         )
     metrics_block = "\n".join(blocks)
-    return f"""You are a fairness analyst explaining ALREADY-COMPUTED metrics to a non-technical user.
+    return f"""You are a fairness analyst explaining ALREADY-COMPUTED audit metrics to a non-technical compliance officer.
 
-A separate statistical engine computed every number below. You are NOT deciding whether bias exists — you ONLY explain the numbers in plain English.
+A separate statistical engine computed every number below. You are NOT deciding whether bias exists — you ONLY explain what the numbers mean in plain English.
 
 STRICT RULES:
 - Use ONLY the numbers in each item's facts. Never invent, estimate, or assume a statistic.
-- If a fact is missing for some point, skip that point — do not guess.
-- 3-5 short sentences per metric. Plain English, no markdown.
+- If a fact needed for a point is missing, skip that point — do not guess.
+- Use cautious language: "may indicate", "should be reviewed", "possible disparity", "not conclusive on its own", "requires domain validation".
+- Never claim definite discrimination. Never give legal advice.
+- Be specific and contextual — avoid generic text like "This metric shows fairness across groups."
+- Mention actual values and affected groups when available.
 
-For each metric, cover whichever the facts support: what it means, why this value is/isn't a concern, which group is most affected, which feature may be responsible, and one next step.
+For each metric, return a JSON object with these 6 fields:
+  "plain_summary"              - One sentence (≤ 20 words) non-technical summary for non-experts.
+  "technical_meaning"          - 1-2 sentences defining what this metric mathematically measures.
+  "current_value_interpretation" - 2-3 sentences interpreting this specific computed value and what it signals.
+  "affected_groups"            - Which group(s) are most affected, if data is available. Otherwise "Not available from current data."
+  "risk_reason"                - 1-2 sentences explaining why this value is low/moderate/high risk and what threshold was used.
+  "recommended_review"         - 1 actionable sentence the user should do next.
 
 AUDIT DOMAIN: {items[0].domain if items else "general"}
 
-METRICS:
+METRICS TO EXPLAIN:
 {metrics_block}
 
-Return ONLY a JSON object mapping each metric id (exactly as written above) to its plain-English explanation string. Example: {{"some_id": "explanation text", ...}}"""
+Return ONLY a valid JSON object mapping each metric id (exactly as written in quotes above) to an object with those 6 fields.
+Example format:
+{{"some_metric_id": {{"plain_summary": "...", "technical_meaning": "...", "current_value_interpretation": "...", "affected_groups": "...", "risk_reason": "...", "recommended_review": "..."}}, ...}}"""
 
 
 def _generate_with_gemini(api_key: str, prompt: str, *, as_json: bool = False) -> str:
@@ -177,8 +189,9 @@ async def explain_metric(req: ExplainMetricRequest) -> dict[str, str]:
 
 @router.post("/explain-batch")
 async def explain_batch(req: ExplainBatchRequest) -> dict[str, Any]:
-    """Explain MANY metrics in a single Gemini call. The frontend pre-fetches this once after
-    analysis so each "Explain this" click is an instant cache read, not a new API call."""
+    """Explain MANY metrics in a single Gemini call. Returns structured explanation objects
+    keyed by metric id. The frontend pre-fetches this once after analysis so each
+    'Explain this' click is an instant cache read, not a new API call."""
     if not req.items:
         return {"explanations": {}, "status": "ok"}
 
@@ -189,7 +202,15 @@ async def explain_batch(req: ExplainBatchRequest) -> dict[str, Any]:
     try:
         raw = _generate_with_gemini(api_key, _build_batch_prompt(req.items), as_json=True)
         data = json.loads(raw)
-        explanations = {str(k): str(v) for k, v in data.items() if isinstance(v, (str, int, float))}
+        # Accept both legacy string values and new structured dict values
+        explanations: dict[str, Any] = {}
+        for k, v in data.items():
+            if isinstance(v, dict):
+                # New structured format: {plain_summary, technical_meaning, ...}
+                explanations[str(k)] = v
+            elif isinstance(v, (str, int, float)):
+                # Legacy plain-string format — wrap in a minimal structure
+                explanations[str(k)] = {"plain_summary": str(v)}
         return {"explanations": explanations, "status": "ok"}
     except ImportError:
         return {"explanations": {}, "status": "import_error"}
@@ -200,6 +221,7 @@ async def explain_batch(req: ExplainBatchRequest) -> dict[str, Any]:
         error_str = str(exc)
         status = "rate_limited" if ("429" in error_str or "quota" in error_str.lower()) else "error"
         return {"explanations": {}, "status": status}
+
 
 
 @router.post("/generate")
@@ -245,3 +267,48 @@ async def generate_narrative(payload: dict[str, Any]):
             "prompt": prompt,
             "status": "error",
         }
+
+
+class ExplainMitigationRequest(BaseModel):
+    mitigation_run_id: int | str
+    removed_records_count: int
+    retention_percentage: float
+    original_summary: dict[str, Any]
+    mitigated_summary: dict[str, Any]
+
+@router.post("/explain-mitigation")
+async def explain_mitigation(req: ExplainMitigationRequest) -> dict[str, Any]:
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return {"mitigation_results": {}, "status": "api_key_missing"}
+
+    prompt = f"""You are a fairness analyst reviewing a sandbox mitigation experiment.
+The user excluded some records to mitigate bias. Compare the original vs. mitigated results and explain the outcome.
+
+Original Results:
+{json.dumps(req.original_summary, indent=2)}
+
+Mitigation details: 
+Excluded {req.removed_records_count} records. Retention rate is {req.retention_percentage}%.
+
+Mitigated Results:
+{json.dumps(req.mitigated_summary, indent=2)}
+
+Return ONLY a valid JSON object with EXACTLY this structure:
+{{
+  "summary": "High-level summary of what happened.",
+  "fairness_change_explanation": "Explain how the fairness score and gaps changed.",
+  "accuracy_tradeoff_explanation": "Explain any change in accuracy relative to the fairness gains.",
+  "remaining_risks": "Mention if any metrics are still concerning.",
+  "recommended_next_steps": "One or two next steps."
+}}"""
+
+    try:
+        raw = _generate_with_gemini(api_key, prompt, as_json=True)
+        data = json.loads(raw)
+        return {"mitigation_results": data, "status": "ok"}
+    except Exception as exc:
+        error_str = str(exc)
+        status = "rate_limited" if ("429" in error_str or "quota" in error_str.lower()) else "error"
+        return {"mitigation_results": {}, "status": status}
+

@@ -44,6 +44,8 @@ interface AppState {
   analyzeError: string | null;
   projects: ProjectRecord[];
   maxStep: number;
+  projectName: string | null;
+  taskId: string | null;
 }
 
 interface AppContextType extends AppState {
@@ -82,9 +84,10 @@ interface AppContextType extends AppState {
   setResultsFromPipeline: (data: PipelineFullResult) => void;
 
   // Plain-English explanation cache (pre-fetched once per analysis).
-  getExplanation: (metric: string) => string | undefined;
-  cacheExplanation: (metric: string, text: string) => void;
+  getExplanation: (metric: string) => any;
+  cacheExplanation: (metric: string, text: any) => void;
   explanationsReady: boolean;
+  taskId: string | null;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -118,17 +121,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const [taskId, setTaskId] = useState<string | null>(
+    () => localStorage.getItem('latest_task_id')
+  );
 
   // ── Plain-English explanation cache ─────────────────────────────────────────
   // Filled by a single batch call right after analysis, so each "Explain this" click is
   // an instant cache read instead of a fresh API call. Lazy single calls still fall back
   // (and write here) if the pre-fetch missed or failed.
-  const [explanationCache, setExplanationCache] = useState<Record<string, string>>({});
+  const [explanationCache, setExplanationCache] = useState<Record<string, any>>({});
   const [explanationsReady, setExplanationsReady] = useState(false);
   const lastPrefetchSig = React.useRef<string>('');
 
   const getExplanation = (metric: string) => explanationCache[metric];
-  const cacheExplanation = (metric: string, text: string) =>
+  const cacheExplanation = (metric: string, text: any) =>
     setExplanationCache((prev) => ({ ...prev, [metric]: text }));
 
   const prefetchExplanations = async (result: PipelineFullResult) => {
@@ -137,7 +143,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const items = buildExplainItems(result, domain);
       if (!items.length) { setExplanationsReady(true); return; }
       const res = await api.post('/narrative/explain-batch', { items });
-      const map = (res.data as { explanations?: Record<string, string> })?.explanations;
+      const map = (res.data as { explanations?: Record<string, any> })?.explanations;
       if (map && typeof map === 'object') {
         setExplanationCache((prev) => ({ ...prev, ...map }));
       }
@@ -182,6 +188,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setResultsFromPipeline(data);
       await refreshProjects();
       localStorage.removeItem('active_analysis_task');
+      // Persist the completed task_id for regroup requests
+      setTaskId(task_id);
+      localStorage.setItem('latest_task_id', task_id);
 
     } catch (err) {
       const e = err as { code?: string; message?: string; response?: { data?: { detail?: string } } };
@@ -445,8 +454,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const maxStep = Math.min(
     currentProject?.max_step
       ?? parseInt(localStorage.getItem(`max_step_${projectId}`) ?? '1', 10),
-    9
+    10  // now supports 10 steps including Mitigation
   );
+  const projectName = currentProject?.name ?? null;
 
   React.useEffect(() => { refreshProjects(); }, []);
 
@@ -461,13 +471,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       stressResult, setStressResult, recommendResult, setRecommendResult,
       sandboxResult, setSandboxResult, monitoringResult, setMonitoringResult,
       pipelineResults, isAnalyzing, analyzeError,
-      projects, maxStep,
+      projects, maxStep, projectName,
       runFullAnalysis,
       runModelBias, runRecommendFixes, runSandboxSimulation,
       runMonitoringSimulation, getMonitoringData,
       refreshProjects, advanceStep,
       setResultsFromPipeline,
       getExplanation, cacheExplanation, explanationsReady,
+      taskId,
     }}>
       {children}
     </AppContext.Provider>

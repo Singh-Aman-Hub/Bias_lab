@@ -4,6 +4,7 @@ import CounterfactualFlip from '../../components/CounterfactualFlip';
 import ScoreGauge from '../../components/ScoreGauge';
 import Toast, { useToast, errMsg } from '../../components/Toast';
 import ExplainThis from '../../components/ExplainThis';
+import ChatHelpButton from '../../components/ChatHelpButton';
 import { useAppContext } from '../../context/AppContext';
 import { api } from '../../api/client';
 import { buildExplainItems } from '../../utils/explainItems';
@@ -75,7 +76,10 @@ export default function Step6Counterfactual() {
 
       <div className="grid-2" style={{ marginBottom: 24 }}>
         <div className="card">
-          <div className="section-title">Decision flip rate</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="section-title">Decision flip rate</div>
+            <ChatHelpButton section="Counterfactual Flip Rate" description="The percentage of model decisions that change when only the sensitive attribute is flipped. A high flip rate indicates the model relies on the sensitive attribute." extraContext={{ flip_rate: flip_rate, sensitive_col: sensitiveCol }} />
+          </div>
           <div className="stat-number">{Math.round(flip_rate * 100)}%</div>
           <div className="helper">of decisions flip when changing {sensitiveCol}</div>
         </div>
@@ -92,7 +96,10 @@ export default function Step6Counterfactual() {
       </div>
 
       <div className="card" style={{ marginBottom: 24 }}>
-        <div className="section-title">Flip breakdown</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="section-title">Flip breakdown</div>
+          <ChatHelpButton section="Counterfactual Flip Breakdown" description="Shows how many records flip from one decision to another (e.g., Approved → Rejected) when the sensitive attribute is changed." />
+        </div>
         <div className="grid-2">
           {(Object.entries(flip_breakdown || {}) as Array<[string, { rate: number; flips: number; total: number }]>).map(([name, entry]) => (
             <div className="notice" key={name}>

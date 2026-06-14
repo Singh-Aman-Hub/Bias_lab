@@ -504,3 +504,33 @@ def test_audit_and_proxy_and_bias():
     assert proxy["proxy_features"]
     bias = run_model_bias_analysis(df, ["gender", "caste"], "approved")
     assert bias["fairness_score"] < 50
+
+
+def test_low_confidence_exclusion_and_age_label():
+    import numpy as np
+    import pandas as pd
+    np.random.seed(42)
+    # Construct a dataset where age has values up to 50, and 50 has only 5 samples (low confidence)
+    # Ensure unique ages count > 10 so it is treated as continuous/auto-binned.
+    ages = list(range(20, 41)) * 10 + [50]*5
+    approved = [0]*105 + [1]*105 + [1]*5
+    df = pd.DataFrame({
+        "age": ages,
+        "approved": approved,
+        "other_feature": np.random.randn(215)
+    })
+    
+    result = run_model_bias_analysis(
+        df, ["age"], "approved",
+        binning_strategy="custom",
+        custom_bins_map={"age": [20, 30, 40, 50, 55]}
+    )
+    
+    # Check that age metadata contains the "50+" label
+    age_meta = result["sensitive_attr_metadata"]["age"]
+    assert any("50+" in label for label in age_meta["bin_labels"])
+    assert age_meta["group_confidence"]["50+"] is True
+    
+    # Check that metrics (reliable) is smaller than raw_metrics (which includes 50+)
+    assert result["metrics"]["demographic_parity_difference"] < 0.20
+    assert result["raw_metrics"]["demographic_parity_difference"] > 0.40

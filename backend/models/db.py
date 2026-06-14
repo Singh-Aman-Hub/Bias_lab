@@ -40,6 +40,8 @@ class Project(Base):
     monitoring_events: Mapped[list["MonitoringEvent"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     monitoring_logs: Mapped[list["MonitoringLog"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     alerts: Mapped[list["Alert"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    mitigation_runs: Mapped[list["MitigationRun"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    fairness_flags: Mapped[list["FairnessFlag"]] = relationship(back_populates="project", cascade="all, delete-orphan")
 
 
 class AuditRun(Base):
@@ -97,6 +99,36 @@ class Alert(Base):
 
     project: Mapped[Project] = relationship(back_populates="alerts")
 
+class MitigationRun(Base):
+    __tablename__ = "mitigation_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    original_audit_run_id: Mapped[int] = mapped_column(ForeignKey("audit_runs.id"), nullable=False)
+    mitigated_audit_run_id: Mapped[int | None] = mapped_column(ForeignKey("audit_runs.id"), nullable=True)
+    
+    original_dataset_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    mitigated_dataset_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    
+    strategy: Mapped[str] = mapped_column(String(100), nullable=False)
+    selected_pattern_ids_json: Mapped[list[str]] = mapped_column(JSON, default=list)
+    selected_record_ids_json: Mapped[list[str]] = mapped_column(JSON, default=list)
+    
+    removed_records_count: Mapped[int] = mapped_column(Integer, default=0)
+    original_row_count: Mapped[int] = mapped_column(Integer, default=0)
+    mitigated_row_count: Mapped[int] = mapped_column(Integer, default=0)
+    retention_percentage: Mapped[float] = mapped_column(Float, default=100.0)
+    
+    status: Mapped[str] = mapped_column(String(50), default="running")
+    result_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    task_id: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    project: Mapped[Project] = relationship(back_populates="mitigation_runs")
+
+
 class FairnessFlag(Base):
     __tablename__ = "fairness_flags"
 
@@ -108,7 +140,7 @@ class FairnessFlag(Base):
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     resolved: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    project: Mapped[Project] = relationship("Project", backref="fairness_flags")
+    project: Mapped[Project] = relationship(back_populates="fairness_flags")
 
 
 Base.metadata.create_all(bind=engine)

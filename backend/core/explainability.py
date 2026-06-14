@@ -90,7 +90,8 @@ def explain_flagged_decisions(
     model,
     sensitive_cols: list[str],
     target_col: str,
-    n_samples: int = 5,
+    n_samples: int = 15,
+    return_all: bool = False,
 ) -> list[dict[str, Any]]:
     prepared = prepare_split(df, target_col)
     proxy_result = detect_proxy_features(df, sensitive_cols)
@@ -98,9 +99,29 @@ def explain_flagged_decisions(
 
     pipeline = model if model is not None else _build_default(prepared)
 
-    sample_limit = min(len(prepared.X_test), max(n_samples * 2, 10))
+    limit_to_find = len(prepared.X_test) if return_all else n_samples
+    # Limit test set to at most 300 to keep KernelExplainer fast for large datasets
+    sample_limit = min(len(prepared.X_test), 300) if return_all else min(len(prepared.X_test), max(n_samples * 2, 40))
     test_features = prepared.X_test.iloc[:sample_limit].copy()
     predictions = pd.Series(pipeline.predict(test_features), index=test_features.index)
+    
+    probs = None
+    if hasattr(pipeline, "predict_proba"):
+        try:
+            probs = pipeline.predict_proba(test_features)[:, 1]
+        except Exception:
+            pass
+
+    # Pre-calculate binned sensitive group mappings
+    from core.sensitive_attr_processor import preprocess_sensitive_column
+    binned_series = {}
+    for col in sensitive_cols:
+        try:
+            proc_res = preprocess_sensitive_column(df, col, strategy="auto")
+            binned_series[col] = proc_res["processed_series"]
+        except Exception:
+            binned_series[col] = df[col].astype(str)
+
     flagged: list[dict[str, Any]] = []
 
     # ── Attempt SHAP ─────────────────────────────────────────────────────────
@@ -146,7 +167,6 @@ def explain_flagged_decisions(
             try:
                 row_sv = np.asarray(shap_values)[row_pos]
                 col_names = list(test_features.columns)
-                # shap_values may have more columns (after OHE). Use raw cols if mismatch.
                 n = min(len(col_names), len(row_sv))
                 pairs = sorted(
                     zip(col_names[:n], row_sv[:n].tolist()),
@@ -164,7 +184,6 @@ def explain_flagged_decisions(
             except Exception:
                 pass
 
-        # Per-record numeric deviation fallback so each record has distinct reasons
         numeric_row = pd.to_numeric(row, errors='coerce').dropna()
         local_reasons: list[tuple[str, float]] = []
         for feature_name, feature_value in numeric_row.items():
@@ -191,7 +210,6 @@ def explain_flagged_decisions(
                 for feature, score in sorted(local_reasons, key=lambda x: x[1], reverse=True)[:3]
             ]
 
-        # Fall back to global feature importance
         if ranked_features:
             return [
                 {
@@ -202,7 +220,6 @@ def explain_flagged_decisions(
                 for fname, score in ranked_features
             ]
 
-        # Final fallback: first 3 raw column names
         return [
             {
                 "feature": fname,
@@ -212,68 +229,369 @@ def explain_flagged_decisions(
             for fname in list(test_features.columns)[:3]
         ]
 
-    # ── Contrastive (near-identical) flagging ─────────────────────────────────
-    for row_pos in range(min(len(test_features), n_samples * 2)):
-        row = test_features.iloc[row_pos]
-        row_idx = test_features.index[row_pos]
-        other_rows = test_features.drop(index=row_idx)
-        if other_rows.empty:
-            continue
-        diffs = other_rows.drop(
-            columns=[col for col in sensitive_cols if col in other_rows.columns],
-            errors="ignore",
-        )
-        if diffs.empty:
-            continue
-        numeric_columns = diffs.select_dtypes(include=[np.number]).columns
-        if len(numeric_columns) == 0:
-            continue
-        distances = diffs[numeric_columns].sub(row[numeric_columns], axis=1).pow(2).sum(axis=1)
-        nearest = distances.idxmin() if not distances.empty else row_idx
-        if predictions.loc[row_idx] == predictions.loc[nearest]:
-            continue
+    # Helper to build signature properties for a record
+    def _build_record_details(row_idx, row_pos, row, orig_pred, top_reasons, explanation, exp_type):
+        score_val = 0.5
+        if probs is not None:
+            try:
+                score_val = float(probs[row_pos])
+            except Exception:
+                pass
+        
+        is_near_boundary = (0.35 <= score_val <= 0.65)
+        
+        group_parts = []
+        for col in sensitive_cols:
+            if col in df.columns:
+                try:
+                    val = binned_series[col].loc[row_idx]
+                    group_parts.append(f"{col} {val}")
+                except Exception:
+                    group_parts.append(f"{col} {row[col]}")
+        sensitive_group_bin = " + ".join(group_parts) if group_parts else "None"
+        
+        is_cf_sensitive = False
+        for col in sensitive_cols:
+            if col in test_features.columns:
+                unique_vals = df[col].dropna().unique()
+                for alt_val in unique_vals:
+                    if alt_val == row[col]:
+                        continue
+                    perturbed_row = row.copy()
+                    perturbed_row[col] = alt_val
+                    perturbed_df = pd.DataFrame([perturbed_row])
+                    try:
+                        pert_pred = pipeline.predict(perturbed_df)[0]
+                        if pert_pred != orig_pred:
+                            is_cf_sensitive = True
+                            break
+                    except Exception:
+                        pass
+            if is_cf_sensitive:
+                break
+                
+        actual_val = None
+        is_misclassified = False
+        if target_col in df.columns:
+            try:
+                actual_val = df.loc[row_idx, target_col]
+                actual_str = "approved" if int(actual_val) == 1 else "rejected"
+                pred_str = "approved" if int(orig_pred) == 1 else "rejected"
+                is_misclassified = (actual_str != pred_str)
+            except Exception:
+                pass
 
-        top_reasons = _build_reasons(row_pos, row)
-        has_proxy = any(r["is_proxy_risk"] for r in top_reasons)
-        explanation = (
-            "This decision differs from a very similar record; proxy features may be influencing the result."
-            if has_proxy
-            else "The model treats this near-identical case differently, indicating potential bias or threshold sensitivity."
-        )
-        flagged.append({
+        return {
             "record_id": _record_id(row_idx),
-            "decision": "approved" if int(predictions.loc[row_idx]) == 1 else "rejected",
+            "decision": "approved" if int(orig_pred) == 1 else "rejected",
             "sensitive_attribute": ", ".join(
                 f"{col}={row[col]}" for col in sensitive_cols if col in row.index
             ),
             "top_reasons": top_reasons,
             "human_explanation": explanation,
-            "explanation_type": "contrastive",
-        })
-        if len(flagged) >= n_samples:
-            break
+            "explanation_type": exp_type,
+            "score": score_val,
+            "sensitive_group_bin": sensitive_group_bin,
+            "is_near_boundary": is_near_boundary,
+            "is_cf_sensitive": is_cf_sensitive,
+            "is_misclassified": is_misclassified,
+            "actual_val": actual_val,
+        }
 
-    # ── Individual fallback if no contrastive pairs found ─────────────────────
-    if not flagged:
-        for row_pos in range(min(len(test_features), n_samples, 10)):
+    # Pre-extract contrastive info
+    other_rows = test_features.copy()
+    diffs = other_rows.drop(
+        columns=[col for col in sensitive_cols if col in other_rows.columns],
+        errors="ignore",
+    )
+    numeric_columns = diffs.select_dtypes(include=[np.number]).columns
+
+    # Loop through all test set features
+    for row_pos in range(len(test_features)):
+        row = test_features.iloc[row_pos]
+        row_idx = test_features.index[row_pos]
+        orig_pred = predictions.loc[row_idx]
+        
+        top_reasons = _build_reasons(row_pos, row)
+        has_proxy = any(r["is_proxy_risk"] for r in top_reasons)
+        
+        # 1. Near boundary
+        score_val = 0.5
+        if probs is not None:
+            try:
+                score_val = float(probs[row_pos])
+            except Exception:
+                pass
+        is_near_boundary = (0.35 <= score_val <= 0.65)
+        
+        # 2. Counterfactual flip
+        is_cf_sensitive = False
+        for col in sensitive_cols:
+            if col in test_features.columns:
+                unique_vals = df[col].dropna().unique()
+                for alt_val in unique_vals:
+                    if alt_val == row[col]:
+                        continue
+                    perturbed_row = row.copy()
+                    perturbed_row[col] = alt_val
+                    perturbed_df = pd.DataFrame([perturbed_row])
+                    try:
+                        pert_pred = pipeline.predict(perturbed_df)[0]
+                        if pert_pred != orig_pred:
+                            is_cf_sensitive = True
+                            break
+                    except Exception:
+                        pass
+            if is_cf_sensitive:
+                break
+                
+        # 3. Misclassification
+        actual_val = None
+        is_misclassified = False
+        if target_col in df.columns:
+            try:
+                actual_val = df.loc[row_idx, target_col]
+                actual_str = "approved" if int(actual_val) == 1 else "rejected"
+                pred_str = "approved" if int(orig_pred) == 1 else "rejected"
+                is_misclassified = (actual_str != pred_str)
+            except Exception:
+                pass
+                
+        # 4. Contrastive
+        is_contrastive = False
+        if not diffs.empty and len(numeric_columns) > 0:
+            distances = diffs[numeric_columns].sub(row[numeric_columns], axis=1).pow(2).sum(axis=1)
+            distances = distances.drop(index=row_idx, errors="ignore")
+            if not distances.empty:
+                nearest = distances.idxmin()
+                if predictions.loc[row_idx] != predictions.loc[nearest]:
+                    is_contrastive = True
+
+        # Check if this record meets any bias/risk conditions to flag it
+        is_flagged = is_near_boundary or is_cf_sensitive or is_misclassified or is_contrastive or has_proxy
+        
+        if return_all:
+            if is_flagged:
+                exp_type = "contrastive" if is_contrastive else "individual"
+                explanation = (
+                    "This decision differs from a very similar record; proxy features may be influencing the result."
+                    if is_contrastive and has_proxy
+                    else "The model treats this near-identical case differently, indicating potential bias or threshold sensitivity."
+                    if is_contrastive
+                    else "No near-identical contrasting case found. Showing top influential features for this individual decision."
+                )
+                flagged.append(_build_record_details(
+                    row_idx, row_pos, row, orig_pred, top_reasons, explanation, exp_type
+                ))
+        else:
+            # Traditional n_samples collection logic
+            if is_contrastive:
+                explanation = (
+                    "This decision differs from a very similar record; proxy features may be influencing the result."
+                    if has_proxy
+                    else "The model treats this near-identical case differently, indicating potential bias or threshold sensitivity."
+                )
+                flagged.append(_build_record_details(
+                    row_idx, row_pos, row, orig_pred, top_reasons, explanation, "contrastive"
+                ))
+            if len(flagged) >= limit_to_find:
+                break
+
+    # If not returning all and we have no contrastive cases, fall back to individual records
+    if not return_all and not flagged:
+        for row_pos in range(min(len(test_features), limit_to_find)):
             row = test_features.iloc[row_pos]
             row_idx = test_features.index[row_pos]
             top_reasons = _build_reasons(row_pos, row)
-            flagged.append({
-                "record_id": _record_id(row_idx),
-                "decision": "approved" if int(predictions.loc[row_idx]) == 1 else "rejected",
-                "sensitive_attribute": ", ".join(
-                    f"{col}={row[col]}" for col in sensitive_cols if col in row.index
-                ),
-                "top_reasons": top_reasons,
-                "human_explanation": (
-                    "No near-identical contrasting case found. "
-                    "Showing top influential features for this individual decision."
-                ),
-                "explanation_type": "individual",
-            })
+            explanation = (
+                "No near-identical contrasting case found. "
+                "Showing top influential features for this individual decision."
+            )
+            flagged.append(_build_record_details(
+                row_idx, row_pos, row, predictions.loc[row_idx], top_reasons, explanation, "individual"
+            ))
 
     return flagged
+
+
+def group_into_patterns(flagged: list[dict]) -> list[dict]:
+    """Group flagged records into recurring decision patterns based on a multi-attribute signature."""
+    from collections import defaultdict, Counter
+
+    # Group records by broad signature: (risk_type, top_driver, is_proxy)
+    buckets = defaultdict(list)
+    
+    for record in flagged:
+        reasons = record.get("top_reasons") or []
+        if not reasons:
+            top_driver = "unknown"
+            is_proxy = False
+        else:
+            # Prefer proxy-risk feature as driver if any; else just the top one
+            proxy_reasons = [r for r in reasons if r.get("is_proxy_risk")]
+            top = proxy_reasons[0] if proxy_reasons else reasons[0]
+            top_driver = top.get("feature", "unknown")
+            is_proxy = bool(top.get("is_proxy_risk", False))
+            
+        # Determine risk type
+        if is_proxy:
+            risk_type = "proxy_risk"
+        elif record.get("is_near_boundary", False):
+            risk_type = "near_boundary"
+        elif record.get("is_cf_sensitive", False):
+            risk_type = "counterfactual_sensitive"
+        elif record.get("is_misclassified", False):
+            risk_type = "misclassification"
+        else:
+            risk_type = "general"
+            
+        buckets[(risk_type, top_driver, is_proxy)].append(record)
+
+    patterns = []
+    pattern_index = 1
+    
+    for (risk_type, top_driver, is_proxy), records in buckets.items():
+        count = len(records)
+        
+        # Decision type: approved, rejected, mixed
+        decisions = [r.get("decision", "unknown") for r in records]
+        decision_counts = Counter(decisions)
+        dominant = decision_counts.most_common(1)[0][0]
+        decision_type = dominant if len(decision_counts) == 1 else "mixed"
+        
+        # Risk level: high, medium, low
+        if is_proxy:
+            risk_level = "high"
+        elif risk_type in ("near_boundary", "counterfactual_sensitive"):
+            risk_level = "medium"
+        else:
+            risk_level = "low"
+            
+        # Confidence level
+        if count >= 3:
+            confidence = "high"
+        elif count == 2:
+            confidence = "moderate"
+        else:
+            confidence = "low"
+            
+        # Sensitive groups involved
+        sens_groups = [r.get("sensitive_group_bin", "None") for r in records]
+        unique_groups = sorted(list(set(sens_groups)))
+        sensitive_group_str = " + ".join(unique_groups)
+        
+        # Counterfactual flip rate
+        cf_count = sum(1 for r in records if r.get("is_cf_sensitive", False))
+        cf_flip_rate = round(cf_count / count, 4)
+        
+        # Top SHAP drivers averaged across all records in this pattern
+        feature_shaps = defaultdict(list)
+        for r in records:
+            for reason in r.get("top_reasons") or []:
+                feat = reason.get("feature")
+                val = reason.get("shap_value", 0.0)
+                feature_shaps[feat].append(val)
+                
+        top_drivers_list = []
+        for feat, vals in feature_shaps.items():
+            avg_val = sum(vals) / len(vals)
+            direction = "increased approval" if avg_val >= 0 else "reduced approval"
+            top_drivers_list.append({
+                "feature": feat,
+                "avg_shap": round(avg_val, 4),
+                "direction": direction
+            })
+            
+        # Sort drivers by absolute avg_shap descending
+        top_drivers_list.sort(key=lambda d: abs(d["avg_shap"]), reverse=True)
+        top_drivers_list = top_drivers_list[:3]
+        
+        # Choose representative records (1 to 3)
+        representative_records = []
+        def _rep_score(rec):
+            for r in (rec.get("top_reasons") or []):
+                if r.get("feature") == top_driver:
+                    return abs(r.get("shap_value", 0.0))
+            return 0.0
+            
+        sorted_records = sorted(records, key=_rep_score, reverse=True)
+        for rec in sorted_records[:3]:
+            actual_val = rec.get("actual_val")
+            actual_outcome = None
+            if actual_val is not None:
+                actual_outcome = "approved" if int(actual_val) == 1 else "rejected"
+                
+            representative_records.append({
+                "record_id": rec.get("record_id"),
+                "prediction": rec.get("decision"),
+                "actual": actual_outcome,
+                "score": round(rec.get("score", 0.5), 4),
+                "sensitive_group": rec.get("sensitive_group_bin", "None"),
+                "top_shap": [
+                    {"feature": tr.get("feature"), "value": round(tr.get("shap_value", 0.0), 4)}
+                    for tr in (rec.get("top_reasons") or [])
+                ],
+                "counterfactual_sensitive": rec.get("is_cf_sensitive", False)
+            })
+
+        # Pattern title formatting
+        # Format: “{Top driver}-driven {decision/risk type} decisions”
+        if confidence == "low" and count == 1:
+            title = f"Individual case: {top_driver}-driven {decision_type} decision"
+        else:
+            if risk_type == "near_boundary":
+                risk_desc = "near-boundary"
+            elif risk_type == "counterfactual_sensitive":
+                risk_desc = "counterfactual-sensitive"
+            elif risk_type == "proxy_risk":
+                risk_desc = "proxy-risk"
+            else:
+                risk_desc = f"{decision_type} decisions"
+            
+            if risk_desc.endswith("decisions"):
+                title = f"{top_driver}-driven {risk_desc}"
+            else:
+                title = f"{top_driver}-driven {risk_desc} decisions"
+
+        # Plain explanation text (fallback if LLM response is not present)
+        if is_proxy:
+            plain_explanation = (
+                f"This pattern represents {count} decisions where '{top_driver}' was the primary driver. "
+                f"Because '{top_driver}' correlates with protected columns, it poses a proxy risk. "
+                f"The group consists of {decision_type} decisions, with a counterfactual flip rate of {round(cf_flip_rate * 100)}%."
+            )
+        else:
+            plain_explanation = (
+                f"This pattern contains {count} decisions where '{top_driver}' consistently influenced the model outcome in a {decision_type} direction. "
+                f"The group involves group(s): {sensitive_group_str}. "
+                f"The counterfactual flip rate is {round(cf_flip_rate * 100)}%, indicating how sensitive these outcomes are to demographic changes."
+            )
+            
+        patterns.append({
+            "pattern_id": f"P{pattern_index}",
+            "title": title,
+            "affected_record_count": count,
+            "decision_type": decision_type,
+            "risk_type": risk_type,
+            "risk_level": risk_level,
+            "confidence": confidence,
+            "sensitive_group": sensitive_group_str,
+            "top_drivers": top_drivers_list,
+            "proxy_involved": is_proxy,
+            "counterfactual_flip_rate": cf_flip_rate,
+            "representative_records": representative_records,
+            "record_ids": [r.get("record_id") for r in records],
+            "plain_explanation": plain_explanation
+        })
+        pattern_index += 1
+        
+    # Sort patterns: High-confidence first, then large affected count descending
+    patterns.sort(key=lambda p: (
+        2 if p["confidence"] == "high" else (1 if p["confidence"] == "moderate" else 0),
+        p["affected_record_count"]
+    ), reverse=True)
+    
+    return patterns
 
 
 def _build_default(prepared):

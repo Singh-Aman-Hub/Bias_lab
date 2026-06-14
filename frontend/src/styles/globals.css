@@ -1582,3 +1582,23 @@ input[type="radio"]:checked::after {
     scroll-behavior: auto !important;
   }
 }
+
+/* ─── Fairness Metrics Grid (3×2 responsive) ────────────────────────────────
+   Desktop: 3 columns | Tablet (≤920px): 2 columns | Mobile (≤560px): 1 column */
+.fairness-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 920px) {
+  .fairness-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .fairness-grid {
+    grid-template-columns: 1fr;
+  }
+}

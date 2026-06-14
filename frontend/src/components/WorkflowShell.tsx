@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import React from 'react';
 import {
   Activity,
   BarChart3,
@@ -9,7 +10,9 @@ import {
   Search,
   Settings2,
   ShieldCheck,
+  ShieldAlert,
   Upload,
+  Zap,
 } from 'lucide-react';
 import ProjectSelector from './ProjectSelector';
 import { useAppContext } from '../context/AppContext';
@@ -22,8 +25,9 @@ const STEPS = [
   { id: 5, to: '/workflow/step-5', label: 'Explanations', icon: BrainCircuit },
   { id: 6, to: '/workflow/step-6', label: 'Counterfactual', icon: ShieldCheck },
   { id: 7, to: '/workflow/step-7', label: 'Stress Test', icon: Gauge },
-  { id: 8, to: '/workflow/step-8', label: 'Sandbox', icon: FlaskConical },
-  { id: 9, to: '/workflow/step-9', label: 'Monitor', icon: Activity },
+  { id: 8, to: '/workflow/step-8', label: 'Sandbox Fixes', icon: FlaskConical },
+  { id: 9, to: '/workflow/mitigation-results', label: 'Mitigation Results', icon: ShieldCheck },
+  { id: 10, to: '/workflow/step-9', label: 'Monitor', icon: Activity },
 ];
 
 export default function WorkflowShell({ children }: { children: React.ReactNode }) {
@@ -31,7 +35,15 @@ export default function WorkflowShell({ children }: { children: React.ReactNode 
   const { maxStep } = useAppContext();
 
   const isDashboard = location.pathname === '/dashboard';
-  const currentStep = STEPS.find((step) => location.pathname.includes(step.to)) || STEPS[0];
+  // Fallback to step 1 if not found, unless we are explicitly on the dashboard
+  const currentStep = STEPS.find((step) => {
+    // For parameterized routes like /workflow/mitigation-results/123
+    if (step.to === '/workflow/mitigation-results') {
+      return location.pathname.startsWith('/workflow/mitigation-results');
+    }
+    return location.pathname.includes(step.to);
+  }) || STEPS[0];
+  
   const currentLabel = isDashboard ? 'Dashboard overview' : currentStep.label;
   const currentMeta = isDashboard ? 'Workspace' : `Step ${currentStep.id} of ${STEPS.length}`;
 
@@ -59,23 +71,45 @@ export default function WorkflowShell({ children }: { children: React.ReactNode 
         <nav className="workflow-rail-nav">
           {STEPS.map((step) => {
             const Icon = step.icon;
-            const isActive = location.pathname.includes(step.to);
-            const isLocked = step.id > maxStep && step.id > 2;
+            let isActive = false;
+            if (step.to === '/workflow/mitigation-results') {
+               isActive = location.pathname.startsWith('/workflow/mitigation-results');
+            } else {
+               isActive = location.pathname.includes(step.to);
+            }
+            
+            // Mitigation Results requires step 9 (which means maxStep >= 9) 
+            const isMitigationResults = step.to === '/workflow/mitigation-results';
+            const mitigationRunId = localStorage.getItem('latest_mitigation_run_id');
+            const isLocked = (step.id > maxStep && step.id > 2) || (isMitigationResults && !mitigationRunId);
             // Allow step 1 and 2 always; lock rest until unlocked
+
+            let ariaLabel = `Step ${step.id}: ${step.label}`;
+            let titleText = `Step ${step.id}: ${step.label}`;
+            
+            if (isLocked) {
+              if (isMitigationResults) {
+                titleText = `Run Sandbox Fixes first`;
+                ariaLabel = `${step.label} (locked — run Sandbox Fixes first)`;
+              } else {
+                titleText = `Complete previous steps to unlock: ${step.label}`;
+                ariaLabel = `Step ${step.id}: ${step.label} (locked — complete previous steps to unlock)`;
+              }
+            }
 
             return (
               <Link
                 key={step.id}
-                to={isLocked ? '#' : step.to}
+                to={isLocked ? '#' : (isMitigationResults ? `/workflow/mitigation-results/${mitigationRunId}` : step.to)}
                 className={`workflow-rail-item ${isActive ? 'active' : ''} ${isLocked ? 'locked' : ''}`}
-                aria-label={isLocked ? `Step ${step.id}: ${step.label} (locked — complete previous steps to unlock)` : `Step ${step.id}: ${step.label}`}
+                aria-label={ariaLabel}
                 aria-current={isActive ? 'page' : undefined}
                 aria-disabled={isLocked || undefined}
                 // Locked steps are removed from the tab order and ignore keyboard activation,
                 // so pointerEvents:none (which only blocks the mouse) isn't a keyboard trap.
                 tabIndex={isLocked ? -1 : undefined}
                 onClick={isLocked ? (e) => e.preventDefault() : undefined}
-                title={isLocked ? `Complete previous steps to unlock: ${step.label}` : `Step ${step.id}: ${step.label}`}
+                title={titleText}
                 style={{
                   opacity: isLocked ? 0.3 : 1,
                   cursor: isLocked ? 'not-allowed' : 'pointer',
