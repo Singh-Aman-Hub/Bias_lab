@@ -5,6 +5,11 @@ from typing import Any
 import pandas as pd
 
 from .common import resolve_positive_label, risk_from_gap
+from .sensitive_attr_processor import preprocess_sensitive_column, MIN_GROUP_SIZE
+
+
+# Under-representation threshold: share of total dataset
+UNDER_REP_SHARE_THRESHOLD = 0.05  # <5% of dataset
 
 
 def run_data_audit(df: pd.DataFrame, sensitive_cols: list[str], target_col: str, positive_label: Any = None) -> dict[str, Any]:
@@ -28,39 +33,68 @@ def run_data_audit(df: pd.DataFrame, sensitive_cols: list[str], target_col: str,
             return float(col.mean())
         return float((col == pos_label).mean()) if pos_label is not None else 0.0
 
+    # Column type metadata keyed by sensitive column
+    column_metadata: dict[str, dict[str, Any]] = {}
+
     for sensitive in sensitive_cols:
         if sensitive not in df.columns:
             continue
+
+        # Use the sensitive_attr_processor to get type-aware grouping
+        try:
+            proc_result = preprocess_sensitive_column(df, sensitive, strategy="auto")
+            processed_series = proc_result["processed_series"]
+            col_type = proc_result["column_type"]
+            grouping_method = proc_result["grouping_method"]
+            group_confidence = proc_result["group_confidence"]  # {label: bool (True=low conf)}
+        except Exception:
+            # Fallback to raw string cast if preprocessing fails
+            processed_series = df[sensitive].astype(str).fillna("Unknown")
+            col_type = "categorical"
+            grouping_method = "Raw values"
+            group_confidence = {}
+
+        column_metadata[sensitive] = {
+            "column_type": col_type,
+            "grouping_method": grouping_method,
+        }
+
         stats_for_sensitive: dict[str, Any] = {}
-        counts = df[sensitive].value_counts(dropna=False)
+        counts = processed_series.value_counts(dropna=False)
 
         for group_value, count in counts.items():
-            # Skip nan/null groups for under-representation reporting
-            if pd.isna(group_value) or str(group_value).lower() == "nan":
+            # Skip nan/null/unknown groups for representation reporting
+            str_val = str(group_value).strip().lower()
+            if str_val in ("nan", "null", "none", "unknown", ""):
                 continue
-                
+
             count_int = int(count)
-            mask = df[sensitive].astype(str) == str(group_value)
+            mask = processed_series == str(group_value)
             group_df = df[mask]
 
-            # Guard: positive rate safe even when target_col missing or group empty
+            # Positive rate
             if target_col in group_df.columns and not group_df.empty:
                 group_positive_rate = _rate(group_df[target_col])
             else:
                 group_positive_rate = 0.0
 
             missing_rate = float(group_df.isna().mean().mean()) if not group_df.empty else 0.0
-            representation_ratio = count_int / total_rows  # total_rows >= 1, safe
+            representation_ratio = count_int / total_rows
+
+            # New under-representation rule: n<30 OR share<5%
+            is_under_rep = count_int < MIN_GROUP_SIZE or representation_ratio < UNDER_REP_SHARE_THRESHOLD
+            is_low_confidence = bool(group_confidence.get(str(group_value), count_int < MIN_GROUP_SIZE))
 
             stats_for_sensitive[str(group_value)] = {
                 "count": count_int,
+                "share": round(representation_ratio, 4),
                 "positive_rate": round(group_positive_rate, 4),
                 "missing_rate": round(missing_rate, 4),
-                "under_represented": bool(representation_ratio < 0.2),
+                "under_represented": is_under_rep,
+                "low_confidence": is_low_confidence,
             }
-            if representation_ratio < 0.2:
-                under_represented_groups.append(str(group_value))
-
+            if is_under_rep:
+                under_represented_groups.append(f"{sensitive}: {group_value}")
 
         group_stats[sensitive] = stats_for_sensitive
 
@@ -79,8 +113,8 @@ def run_data_audit(df: pd.DataFrame, sensitive_cols: list[str], target_col: str,
         for column in df.columns
     }
 
-    # Approval-rate gap across groups (robust to NaN / empty slices). Reuses the _rate
-    # helper defined above, which scores against the once-resolved favorable label.
+    # Approval-rate gap across groups (robust to NaN / empty slices).
+    # Uses the binned groups for continuous columns — consistent with model_bias.
     max_gap = 0.0
     worst_reason = "No gaps detected"
 
@@ -88,7 +122,16 @@ def run_data_audit(df: pd.DataFrame, sensitive_cols: list[str], target_col: str,
         if sensitive not in df.columns or target_col not in df.columns:
             continue
         try:
-            rates = df.groupby(sensitive)[target_col].apply(_rate).dropna()
+            # Use the already-processed series if available, otherwise groupby original
+            if sensitive in column_metadata:
+                proc_result_for_gap = preprocess_sensitive_column(df, sensitive, strategy="auto")
+                binned = proc_result_for_gap["processed_series"]
+                # Align with target
+                aligned_target = df[target_col].reindex(binned.index)
+                rates = binned.to_frame(name="group").join(aligned_target).groupby("group")[target_col].apply(_rate).dropna()
+            else:
+                rates = df.groupby(sensitive)[target_col].apply(_rate).dropna()
+
             if rates.empty:
                 continue
             gap = float(rates.max() - rates.min())
@@ -104,6 +147,7 @@ def run_data_audit(df: pd.DataFrame, sensitive_cols: list[str], target_col: str,
 
     return {
         "group_stats": group_stats,
+        "column_metadata": column_metadata,
         "class_distribution": class_distribution,
         "under_represented_groups": under_represented_groups,
         "missing_data": missing_data,

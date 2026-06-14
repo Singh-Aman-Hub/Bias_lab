@@ -106,3 +106,13 @@ def load_dataset(name: str) -> pd.DataFrame:
                 )
             return pd.read_csv(filepath)
     raise ValueError(f"Unknown dataset: {name}. Available: {[d.name for d in _BUILT_IN_DATASETS]}")
+
+
+def load_dataset_from_path(file_path: str) -> pd.DataFrame:
+    """Load a CSV dataset from an arbitrary absolute file path (e.g., user-uploaded files stored in the Project model)."""
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Dataset file not found at: {file_path}")
+    if not path.suffix.lower() == ".csv":
+        raise ValueError(f"Only CSV files are supported. Got: {path.suffix}")
+    return pd.read_csv(path)

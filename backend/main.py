@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles  # noqa: E402
 from fastapi.responses import FileResponse  # noqa: E402
 
 from models.db import Base, engine  # noqa: E402
-from routers import audit, bias, colab, datasets, fixes, gemini_narrative, monitoring, pipeline, sandbox, project  # noqa: E402
+from routers import audit, bias, colab, datasets, fixes, gemini_narrative, monitoring, pipeline, sandbox, project, chat, pattern_review, mitigate  # noqa: E402
 
 app = FastAPI(title="Unbiased AI Decision Platform")
 
@@ -56,6 +56,9 @@ app.include_router(pipeline.router, prefix="/api")
 app.include_router(datasets.router, prefix="/api")
 app.include_router(colab.router, prefix="/api")
 app.include_router(gemini_narrative.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
+app.include_router(pattern_review.router, prefix="/api")
+app.include_router(mitigate.router, prefix="/api")
 
 @app.on_event("startup")
 def startup_seed() -> None:

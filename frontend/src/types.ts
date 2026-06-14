@@ -1,14 +1,27 @@
 export interface GroupStat {
   group: string;
   count: number;
+  share?: number;
   percentage: number;
   approval_rate: number;
+  under_represented?: boolean;
+  low_confidence?: boolean;
+  missing_rate?: number;
 }
 
 export interface DataAuditResult {
-  group_stats: GroupStat[];
+  group_stats: GroupStat[] | Record<string, Record<string, {
+    count: number;
+    share: number;
+    positive_rate: number;
+    missing_rate: number;
+    under_represented: boolean;
+    low_confidence: boolean;
+  }>>;
+  column_metadata?: Record<string, { column_type: string; grouping_method: string }>;
   missing_data: Record<string, number>;
   risk_level: string;
+  max_gap?: number;
 }
 
 export interface ProxyCandidate {
@@ -58,6 +71,15 @@ export interface DisparateImpact {
   by_attribute?: Record<string, DisparateImpact>;
 }
 
+export interface SensitiveAttrMeta {
+  column_type: 'categorical' | 'continuous';
+  grouping_method: string;
+  bin_labels: string[];
+  num_groups: number;
+  min_group_size: number;
+  any_low_confidence: boolean;
+}
+
 export interface ModelBiasResult {
   fairness_score: number;
   risk_level: string;
@@ -65,11 +87,13 @@ export interface ModelBiasResult {
   overfit?: OverfitAssessment;
   disparate_impact?: DisparateImpact;
   metrics: FairnessGaps;
+  raw_metrics?: FairnessGaps;
   group_performance: Record<string, Record<string, GroupMetricValue>>;
   low_confidence_subgroups?: LowConfidenceSubgroup[];
   min_subgroup_size?: number;
   model_used: string;
   hidden_bias?: HiddenBiasEntry[];
+  sensitive_attr_metadata?: Record<string, SensitiveAttrMeta>;
 }
 
 export interface LowConfidenceSubgroup {
@@ -113,6 +137,37 @@ export interface ExplanationRecord {
   top_reasons: ExplanationReason[];
   human_explanation: string;
   explanation_type: string;
+}
+
+export interface ExplanationPattern {
+  pattern_id: string;
+  title: string;
+  affected_record_count: number;
+  decision_type: string;
+  risk_type: string;
+  risk_level: string;
+  confidence: string;
+  sensitive_group: string;
+  top_drivers: {
+    feature: string;
+    avg_shap: number;
+    direction: string;
+  }[];
+  proxy_involved: boolean;
+  counterfactual_flip_rate: number;
+  representative_records: {
+    record_id: number | string;
+    prediction: string;
+    actual: string | null;
+    score: number;
+    sensitive_group: string;
+    top_shap: {
+      feature: string;
+      value: number;
+    }[];
+    counterfactual_sensitive?: boolean;
+  }[];
+  plain_explanation: string;
 }
 
 export interface SampleFlip {
@@ -179,6 +234,7 @@ export interface PipelineFullResult {
   proxy?: ProxyResult;
   model_bias?: ModelBiasResult;
   explanations?: ExplanationRecord[];
+  explanation_patterns?: ExplanationPattern[];
   explain_summary?: string;
   counterfactual?: CounterfactualResult;
   counterfactual_by_attribute?: Record<string, CounterfactualResult>;

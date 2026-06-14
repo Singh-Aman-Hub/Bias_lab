@@ -6,6 +6,8 @@ GET  /pipeline/status/{task_id} → returns { status, result? }
 from __future__ import annotations
 
 import logging
+import os
+import re
 import threading
 import uuid
 from typing import Any
@@ -16,7 +18,7 @@ from sqlalchemy.orm import Session
 from core.auto_fix import generate_fix_recommendations
 from core.counterfactual import run_counterfactual_test
 from core.data_audit import run_data_audit
-from core.explainability import explain_flagged_decisions, generate_narrative_summary
+from core.explainability import explain_flagged_decisions, generate_narrative_summary, group_into_patterns
 from core.feature_intelligence import detect_proxy_features
 from core.common import build_classifier, fit_classifier, get_metric_weights, prepare_split, resolve_positive_label, validate_target_column
 from core.model_bias import run_model_bias_analysis
@@ -57,7 +59,28 @@ def _run_pipeline(
     """Background worker: runs all 8 stages and writes result to task_store."""
     import io
     import pandas as pd
+    import numpy as np
+    import math
     from models.db import SessionLocal
+
+    def convert_np_to_python(obj: Any) -> Any:
+        if isinstance(obj, dict):
+            return {str(k): convert_np_to_python(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [convert_np_to_python(item) for item in obj]
+        elif isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return None if np.isnan(obj) else float(obj)
+        elif isinstance(obj, np.ndarray):
+            return convert_np_to_python(obj.tolist())
+        elif isinstance(obj, np.bool_):
+            return bool(obj)
+        elif type(obj) is float:
+            return None if math.isnan(obj) else obj
+        elif obj is pd.NA:
+            return None
+        return obj
 
     _store_set(task_id, {"status": "processing"})
     db: Session = SessionLocal()
@@ -78,6 +101,19 @@ def _run_pipeline(
             project_id = int(project_id)
 
         df = pd.read_csv(io.BytesIO(df_bytes))
+
+        # ── Persist the raw CSV to disk so mitigation can reload the original dataset ─
+        UPLOAD_DIR = "uploads"
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+        safe_filename = re.sub(r'[^\w\-_.]', '_', filename)
+        saved_csv_path = os.path.join(UPLOAD_DIR, f"proj_{project_id}_pipeline_{safe_filename}")
+        with open(saved_csv_path, "wb") as _f:
+            _f.write(df_bytes)
+        # Update the project record only if dataset_path is not already set
+        proj_record = db.query(Project).filter(Project.id == project_id).first()
+        if proj_record and not proj_record.dataset_path:
+            proj_record.dataset_path = saved_csv_path
+            db.commit()
 
         # ── Normalize the target to 0/1 once, with the favorable outcome = 1 ──────
         # Doing this up front (rather than per-engine) means every stage shares the same
@@ -121,11 +157,12 @@ def _run_pipeline(
 
         # ── Stage 4: Explainability (SHAP / contrastive) ─────────────────────
         explanations = explain_flagged_decisions(
-            df, shared_model, sensitive_list, target_col, n_samples=5
+            df, shared_model, sensitive_list, target_col, return_all=True
         )
 
-        # ── Stage 5: Narrative Summary ────────────────────────────────────────
+        # ── Stage 5: Narrative Summary + Pattern Discovery ──────────────────
         explain_summary = generate_narrative_summary(explanations, sensitive_list, domain=domain)
+        explanation_patterns = group_into_patterns(explanations)
 
         # ── Stage 6: Counterfactual (per sensitive attribute) ─────────────────
         # Compute one result per sensitive column (all on the same shared model) so the
@@ -192,6 +229,7 @@ def _run_pipeline(
 
         # ── Consolidate ───────────────────────────────────────────────────────
         result: dict[str, Any] = {
+            "dataset_row_count": len(df),
             "scores": scores,
             "fairness_score": unified_fairness_score,
             "decision": decision,
@@ -200,6 +238,7 @@ def _run_pipeline(
             "proxy": proxy,
             "model_bias": model_bias,
             "explanations": explanations,
+            "explanation_patterns": explanation_patterns,
             "explain_summary": explain_summary,
             "counterfactual": counterfactual,
             "counterfactual_by_attribute": counterfactual_by_attribute,
@@ -207,6 +246,8 @@ def _run_pipeline(
             "model_used": model_used,
             "sensitive_policy": sensitive_policy,
         }
+
+        result = convert_np_to_python(result)
 
         # ── Persist to DB ──────────────────────────────────────────────────────
         risk_level = data_audit.get("risk_level", "Yellow")
@@ -221,18 +262,22 @@ def _run_pipeline(
             task_id=task_id,
         )
         db.add(audit_run)
+        db.commit()
+        db.refresh(audit_run)
+        
+        result["audit_run_id"] = audit_run.id
 
         log_entry = MonitoringLog(
             project_id=project_id,
             fairness_score=float(unified_fairness_score),
             data_drift_score=0.0,
             prediction_drift_score=0.0,
-            key_metrics={
+            key_metrics=convert_np_to_python({
                 "accuracy": float(model_bias.get("overall_accuracy", 0.0)),
                 "disparate_impact": model_bias.get("disparate_impact", {}).get("ratio"),
                 "demographic_parity": model_bias.get("metrics", {}).get("demographic_parity_difference"),
                 "max_gap": data_audit.get("max_gap", 0.0)
-            }
+            })
         )
         db.add(log_entry)
         
@@ -270,8 +315,17 @@ def _run_pipeline(
 
         db.commit()
 
-        _store_set(task_id, {"status": "complete", "result": result})
-
+        _store_set(task_id, {
+            "status": "complete",
+            "result": result,
+            # Store the raw dataset bytes and column config for regroup without retraining
+            "_regroup_cache": {
+                "df_bytes": df_bytes,
+                "sensitive_list": sensitive_list,
+                "target_col": target_col,
+                "metric_weights": metric_weights,
+            },
+        })
 
     except Exception as exc:
         logger.exception("Pipeline task %s failed", task_id)

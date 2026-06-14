@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, Plus, LayoutGrid, Check, Wand2 } from 'lucide-react';
+import { ChevronDown, Plus, LayoutGrid, Check, Wand2, Trash2 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
-import { formApi } from '../api/client';
+import { formApi, api } from '../api/client';
 
 export default function ProjectSelector() {
   const { projects, projectId, setProjectId, refreshProjects } = useAppContext();
@@ -26,6 +26,20 @@ export default function ProjectSelector() {
       setIsCreating(false);
       setNewName('');
       setIsOpen(false);
+      navigate('/workflow/step-1');
+    } catch { /* ignore */ }
+  };
+
+  const handleDelete = async (e: React.MouseEvent, id: number | string) => {
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to permanently delete this project?')) return;
+    try {
+      await api.delete(`/project/${id}`);
+      await refreshProjects();
+      if (String(id) === String(projectId)) {
+        setProjectId(null);
+        navigate('/');
+      }
     } catch { /* ignore */ }
   };
 
@@ -73,7 +87,17 @@ export default function ProjectSelector() {
                       onClick={() => { setProjectId(String(p.id)); setIsOpen(false); }}
                     >
                       <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{p.name}</span>
-                      {String(p.id) === String(projectId) && <Check size={14} color="var(--accent)" />}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {String(p.id) === String(projectId) && <Check size={14} color="var(--accent)" />}
+                        <button 
+                          className="btn btn-ghost" 
+                          style={{ padding: 4, color: 'var(--text-secondary)' }}
+                          onClick={(e) => handleDelete(e, p.id)}
+                          title="Delete Project"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -193,3 +193,24 @@ async def get_latest_results(project_id: int, db: Session = Depends(get_db)) -> 
         "fairness_score": run.fairness_score,
         "accuracy": run.accuracy
     }
+
+@router.delete("/{project_id}")
+async def delete_project(project_id: int, db: Session = Depends(get_db)) -> dict[str, Any]:
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if project.dataset_path and os.path.exists(project.dataset_path):
+        try:
+            os.remove(project.dataset_path)
+        except Exception:
+            pass
+    if project.model_path and os.path.exists(project.model_path):
+        try:
+            os.remove(project.model_path)
+        except Exception:
+            pass
+
+    db.delete(project)
+    db.commit()
+    return {"status": "deleted"}

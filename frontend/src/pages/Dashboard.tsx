@@ -7,11 +7,13 @@ import {
 } from 'recharts';
 import { 
   AlertTriangle, CheckCircle2, ShieldAlert, Zap, Search, 
-  Target, Fingerprint, Info, Activity, History
+  Target, Fingerprint, Info, Activity, History, Download
 } from 'lucide-react';
 import { api } from '../api/client';
 import { scoreColor } from '../utils/score';
 import GettingStarted from '../components/GettingStarted';
+import ReportDownloader from '../components/ReportDownloader';
+import ChatHelpButton from '../components/ChatHelpButton';
 
 export default function Dashboard() {
   const { pipelineResults, projectId } = useAppContext();
@@ -102,19 +104,22 @@ export default function Dashboard() {
   const DecisionIcon = config.icon;
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 60 }}>
+    <div style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 60 }} id="dashboard-content">
       {/* Header with Decision */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 40 }}>
         <div>
           <h1 className="page-title" style={{ marginBottom: 4 }}>Audit Intelligence Dashboard</h1>
           <p className="helper">Comprehensive fairness assessment for your model.</p>
         </div>
-        <div style={{ 
-          display: 'flex', alignItems: 'center', gap: 12, padding: '10px 24px', marginLeft: 20,
-          background: config.bg, borderRadius: 100, border: `1px solid ${config.color}`
-        }}>
-          <DecisionIcon size={20} color={config.color} />
-          <strong style={{ color: config.color, letterSpacing: 1, fontSize: '0.9rem' }}>{decision}</strong>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <ReportDownloader targetId="dashboard-content" />
+          <div style={{ 
+            display: 'flex', alignItems: 'center', gap: 12, padding: '10px 24px',
+            background: config.bg, borderRadius: 100, border: `1px solid ${config.color}`
+          }}>
+            <DecisionIcon size={20} color={config.color} />
+            <strong style={{ color: config.color, letterSpacing: 1, fontSize: '0.9rem' }}>{decision}</strong>
+          </div>
         </div>
       </div>
 
@@ -122,7 +127,10 @@ export default function Dashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 24, marginBottom: 32 }}>
         {/* Big Circular Score */}
         <div className="card" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', background: 'rgba(52, 214, 196, 0.03)' }}>
-          <div className="stat-label" style={{ marginBottom: 20, letterSpacing: 2 }}>Unified Score</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div className="stat-label" style={{ letterSpacing: 2 }}>Unified Score</div>
+            <ChatHelpButton section="Unified Fairness Index" description="An aggregate score across all 8 forensic stages: data audit, model bias, proxy risk, counterfactual, stress, and recommendations." extraContext={{ fairness_score, decision }} />
+          </div>
           <div style={{ position: 'relative', display: 'inline-block', margin: '0 auto' }}>
             <svg width="190" height="190" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,255,255,0.02)" strokeWidth="6" />

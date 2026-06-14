@@ -9,6 +9,7 @@ import ExplainThis, { type ExplainPayload } from '../../components/ExplainThis';
 import { formApi, api } from '../../api/client';
 import { AlertTriangle, Flag, Activity, Info, CheckCircle, Clock, TrendingUp, TrendingDown, Shield, ChevronDown, ChevronUp, Zap } from 'lucide-react';
 import type { FairnessFlag, MonitoringPayload } from '../../types';
+import ChatHelpButton from '../../components/ChatHelpButton';
 
 interface DriftReportData {
   drift_alert?: boolean;
@@ -290,7 +291,10 @@ export default function Step9Monitoring() {
       <div style={S.header}>
         <div>
           <div className="kicker">Step 9 of 9</div>
-          <h1 className="page-title">Continuous Monitoring</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h1 className="page-title" style={{ margin: 0 }}>Continuous Monitoring</h1>
+            <ChatHelpButton section="Continuous Monitoring" description="Track model fairness, alerts, drift warnings, and stability scores over time in production." />
+          </div>
           <p className="helper" style={{ marginTop:8 }}>Track fairness over time. Detect drift. Investigate incidents.</p>
         </div>
         <div style={{ display:'flex', gap:10 }}>
@@ -345,7 +349,10 @@ export default function Step9Monitoring() {
           {/* Chart */}
           <div className="card">
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
-              <div className="section-title" style={{ marginBottom:0 }}>Fairness Score Over Time</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div className="section-title" style={{ margin: 0 }}>Fairness Score Over Time</div>
+                <ChatHelpButton section="Fairness Score Over Time Chart" description="Visualizes how overall and group-level fairness metrics evolve across production runs." />
+              </div>
               <div style={{ display:'flex', gap:4, background:'var(--surface-raised)', padding:4, borderRadius:8, border: '0.5px solid var(--border)' }}>
                 {(['overall','group'] as const).map(m => (
                   <button key={m} className={`btn btn-small ${viewMode === m ? 'btn-primary' : ''}`}
@@ -367,7 +374,10 @@ export default function Step9Monitoring() {
 
           {/* Drift Detection */}
           <div className="card">
-            <div className="section-title">Data Drift Detection</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <div className="section-title" style={{ margin: 0 }}>Data Drift Detection</div>
+              <ChatHelpButton section="Data Drift Detection" description="Compare baseline training distributions to current production logs to identify data distribution shifts that could degrade fairness." />
+            </div>
             <p className="helper" style={{ marginBottom:16 }}>Compare recent production data against the baseline to detect distribution shifts.</p>
             <div style={S.driftBox}>
               <div style={{ flex:1 }}>
@@ -425,7 +435,10 @@ export default function Step9Monitoring() {
 
           {/* What-if Simulation Sandbox */}
           <div className="card">
-            <div className="section-title">What-if Fairness Sandbox</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <div className="section-title" style={{ margin: 0 }}>What-if Fairness Sandbox</div>
+              <ChatHelpButton section="What-if Fairness Sandbox" description="Upload synthetic or candidate production data to run dry-run simulations of drift alerts and predicted fairness outcomes." />
+            </div>
             <p className="helper" style={{ marginBottom:16 }}>Upload a potential future dataset to simulate drift and predict fairness impacts without affecting your production logs.</p>
             <div style={S.driftBox}>
               <div style={{ flex:1 }}>

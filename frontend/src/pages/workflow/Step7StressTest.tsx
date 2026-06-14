@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import AnimatedNumber from '../../components/animations/AnimatedNumber';
 import ScanningSkeleton from '../../components/animations/ScanningSkeleton';
 import ExplainThis from '../../components/ExplainThis';
+import ChatHelpButton from '../../components/ChatHelpButton';
 import { buildExplainItems } from '../../utils/explainItems';
 import { ArrowRight, ArrowLeft } from 'lucide-react';
 import type { CustomScenario } from '../../types';
@@ -166,7 +167,10 @@ export default function Step7StressTest() {
       </div>
 
       <div className="card" style={{ marginBottom: 24 }}>
-        <div className="section-title">Overall Fragility</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div className="section-title">Overall Fragility</div>
+          <ChatHelpButton section="Model Fragility Score" description="Measures how sensitive the model's fairness is to data distribution changes. A high fragility score means the model becomes unfair when real-world data shifts." extraContext={{ overall_fragility: overall_fragility }} />
+        </div>
         <div className="stat-number">{overall_fragility}</div>
         <div className="helper">Higher values indicate the model's fairness is highly sensitive to changes in data distribution.</div>
         {stressExplain && <ExplainThis payload={stressExplain} />}
