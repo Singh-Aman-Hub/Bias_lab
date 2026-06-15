@@ -16,12 +16,10 @@ const Step5Explanations = lazy(() => import('./pages/workflow/Step5Explanations'
 const Step6Counterfactual = lazy(() => import('./pages/workflow/Step6Counterfactual'));
 const Step7StressTest = lazy(() => import('./pages/workflow/Step7StressTest'));
 const Step8Sandbox = lazy(() => import('./pages/workflow/Step8Sandbox'));
-const Step9Monitoring = lazy(() => import('./pages/workflow/Step9Monitoring'));
 const Step10Mitigation = lazy(() => import('./pages/workflow/Step10Mitigation'));
 const MitigationResults = lazy(() => import('./pages/workflow/MitigationResults'));
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
-const MonitoringDashboard = lazy(() => import('./pages/MonitoringDashboard'));
 const CreateProject = lazy(() => import('./pages/CreateProject'));
 const HeroPage = lazy(() => import('./pages/HeroPage'));
 
@@ -70,11 +68,9 @@ export default function App() {
                 <Route path="/workflow/step-6" element={<PageTransition locationKey="s6"><Step6Counterfactual /></PageTransition>} />
                 <Route path="/workflow/step-7" element={<PageTransition locationKey="s7"><Step7StressTest /></PageTransition>} />
                 <Route path="/workflow/step-8" element={<PageTransition locationKey="s8"><Step8Sandbox /></PageTransition>} />
-                <Route path="/workflow/step-9" element={<PageTransition locationKey="s9"><Step9Monitoring /></PageTransition>} />
                 <Route path="/workflow/step-10" element={<PageTransition locationKey="s10"><Step10Mitigation /></PageTransition>} />
                 <Route path="/workflow/mitigation-results/:runId" element={<PageTransition locationKey="mitres"><MitigationResults /></PageTransition>} />
-                <Route path="/monitoring" element={<PageTransition locationKey="mon"><MonitoringDashboard /></PageTransition>} />
-                
+
                 <Route path="*" element={<Navigate to="/workflow/step-1" replace />} />
               </Routes>
             </Suspense>

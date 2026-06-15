@@ -1,7 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import React from 'react';
 import {
-  Activity,
   BarChart3,
   BrainCircuit,
   FlaskConical,
@@ -27,7 +26,6 @@ const STEPS = [
   { id: 7, to: '/workflow/step-7', label: 'Stress Test', icon: Gauge },
   { id: 8, to: '/workflow/step-8', label: 'Sandbox Fixes', icon: FlaskConical },
   { id: 9, to: '/workflow/mitigation-results', label: 'Mitigation Results', icon: ShieldCheck },
-  { id: 10, to: '/workflow/step-9', label: 'Monitor', icon: Activity },
 ];
 
 export default function WorkflowShell({ children }: { children: React.ReactNode }) {

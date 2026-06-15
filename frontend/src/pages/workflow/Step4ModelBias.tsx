@@ -12,13 +12,12 @@ import { scoreColor } from '../../utils/score';
 import { api } from '../../api/client';
 import type { SensitiveAttrMeta } from '../../types';
 
-type BinningStrategy = 'auto' | 'equal_width' | 'quantile' | 'raw';
+type BinningStrategy = 'auto' | 'equal_width' | 'quantile';
 
 const BINNING_OPTIONS: { value: BinningStrategy; label: string }[] = [
   { value: 'auto', label: 'Auto-bin' },
   { value: 'equal_width', label: 'Equal-width bins' },
   { value: 'quantile', label: 'Quantile bins' },
-  { value: 'raw', label: 'Raw values (diagnostic)' },
 ];
 
 export default function Step4ModelBias() {
