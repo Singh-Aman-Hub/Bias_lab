@@ -18,13 +18,14 @@ if _env_path.exists():
 # in schemas and FastAPI endpoint parameters before any modules are imported.
 warnings.filterwarnings("ignore", message="Field.*has conflict with protected namespace")
 
-from fastapi import FastAPI  # noqa: E402
+from fastapi import Depends, FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from fastapi.responses import FileResponse  # noqa: E402
 
-from models.db import Base, engine  # noqa: E402
-from routers import audit, bias, colab, datasets, fixes, gemini_narrative, monitoring, pipeline, sandbox, project, chat, pattern_review, mitigate  # noqa: E402
+from core.firebase_auth import get_current_user  # noqa: E402
+from core.firestore_db import get_client  # noqa: E402
+from routers import audit, bias, colab, datasets, fixes, gemini_narrative, monitoring, pipeline, sandbox, project, chat, pattern_review, mitigate, user  # noqa: E402
 
 app = FastAPI(title="Unbiased AI Decision Platform")
 
@@ -46,23 +47,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Auth dependency applied globally to all protected routers
+_auth = [Depends(get_current_user)]
+
+# Public — project and pipeline declare auth per-endpoint (some task status/result
+# endpoints are intentionally token-free because task_ids are unguessable UUIDs).
 app.include_router(project.router, prefix="/api")
-app.include_router(audit.router, prefix="/api")
-app.include_router(bias.router, prefix="/api")
-app.include_router(fixes.router, prefix="/api")
-app.include_router(sandbox.router, prefix="/api")
-app.include_router(monitoring.router, prefix="/api")
 app.include_router(pipeline.router, prefix="/api")
-app.include_router(datasets.router, prefix="/api")
-app.include_router(colab.router, prefix="/api")
-app.include_router(gemini_narrative.router, prefix="/api")
-app.include_router(chat.router, prefix="/api")
-app.include_router(pattern_review.router, prefix="/api")
-app.include_router(mitigate.router, prefix="/api")
+app.include_router(datasets.router, prefix="/api")  # sample datasets are public
+
+# Protected routers
+app.include_router(audit.router, prefix="/api", dependencies=_auth)
+app.include_router(bias.router, prefix="/api", dependencies=_auth)
+app.include_router(fixes.router, prefix="/api", dependencies=_auth)
+app.include_router(sandbox.router, prefix="/api", dependencies=_auth)
+app.include_router(monitoring.router, prefix="/api", dependencies=_auth)
+app.include_router(colab.router, prefix="/api", dependencies=_auth)
+app.include_router(gemini_narrative.router, prefix="/api", dependencies=_auth)
+app.include_router(chat.router, prefix="/api", dependencies=_auth)
+app.include_router(pattern_review.router, prefix="/api", dependencies=_auth)
+app.include_router(mitigate.router, prefix="/api")  # auth declared per-endpoint
+app.include_router(user.router, prefix="/api")       # auth declared per-endpoint
+
 
 @app.on_event("startup")
 def startup_seed() -> None:
-    Base.metadata.create_all(bind=engine)
+    # Warm Firestore connection on startup
+    try:
+        get_client()
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("Firestore init failed at startup: %s", exc)
 
 
 @app.get("/health")
@@ -72,14 +87,14 @@ def health() -> dict[str, str]:
 # Serve Frontend
 app.mount("/assets", StaticFiles(directory="../frontend/dist/assets"), name="assets")
 
+
 @app.get("/{full_path:path}")
 async def serve_frontend(full_path: str):
     # If the path looks like a file (has an extension), don't serve index.html
     if "." in full_path.split("/")[-1]:
-        # Try to serve the file from dist
         file_path = os.path.join("../frontend/dist", full_path)
         if os.path.exists(file_path):
             return FileResponse(file_path)
-    
+
     # Otherwise, serve index.html for client-side routing
     return FileResponse("../frontend/dist/index.html")

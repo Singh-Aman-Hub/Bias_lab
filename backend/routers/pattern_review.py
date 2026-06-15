@@ -6,39 +6,35 @@ from typing import Any
 from fastapi import APIRouter, Form
 from core.pattern_discovery import discover_intersectional_patterns
 from core.dataset_loader import load_dataset_from_path
-from models.db import SessionLocal, Project
+from core import store
 
 router = APIRouter(prefix="/patterns", tags=["patterns"])
 
 @router.post("/discover")
 async def discover_patterns(project_id: int = Form(...)) -> dict[str, Any]:
-    with SessionLocal() as db:
-        project = db.query(Project).filter(Project.id == project_id).first()
-        if not project or not project.dataset_path:
-            return {"error": "Project or dataset not found", "patterns": []}
+    project = store.get_project(project_id)
+    if not project or not project.get("dataset_path"):
+        return {"error": "Project or dataset not found", "patterns": []}
 
-        try:
-            df = load_dataset_from_path(project.dataset_path)
-            sensitive_cols = project.sensitive_columns
-            target_col = project.target_column
+    try:
+        df = load_dataset_from_path(project["dataset_path"])
+        sensitive_cols = project.get("sensitive_columns", [])
+        target_col = project.get("target_column", "")
 
-            # Get positive label logic
-            # For simplicity, if we don't have positive_label stored, we'll try to infer it
-            # usually it's '1' or the most frequent class, or we can use value counts
-            if target_col and target_col in df.columns:
-                val_counts = df[target_col].value_counts()
-                positive_label = val_counts.index[0] # assuming most frequent or 1
-                if 1 in val_counts.index:
-                    positive_label = 1
-                elif 'Yes' in val_counts.index:
-                    positive_label = 'Yes'
-                
-                patterns = discover_intersectional_patterns(df, sensitive_cols, target_col, positive_label)
-                return {"patterns": patterns}
-            else:
-                return {"patterns": []}
-        except Exception as e:
-            return {"error": str(e), "patterns": []}
+        if target_col and target_col in df.columns:
+            val_counts = df[target_col].value_counts()
+            positive_label = val_counts.index[0]
+            if 1 in val_counts.index:
+                positive_label = 1
+            elif 'Yes' in val_counts.index:
+                positive_label = 'Yes'
+
+            patterns = discover_intersectional_patterns(df, sensitive_cols, target_col, positive_label)
+            return {"patterns": patterns}
+        else:
+            return {"patterns": []}
+    except Exception as e:
+        return {"error": str(e), "patterns": []}
 
 @router.post("/explain")
 async def explain_pattern(pattern_description: str = Form(...), affected_records: int = Form(...)) -> dict[str, str]:

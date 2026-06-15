@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { formApi, api } from '../api/client';
+import { useAuth } from './AuthContext';
 import { buildExplainItems } from '../utils/explainItems';
 import type {
   DataAuditResult,
@@ -46,6 +47,7 @@ interface AppState {
   maxStep: number;
   projectName: string | null;
   taskId: string | null;
+  latestMitigationRunId: string | null;
 }
 
 interface AppContextType extends AppState {
@@ -88,6 +90,8 @@ interface AppContextType extends AppState {
   cacheExplanation: (metric: string, text: any) => void;
   explanationsReady: boolean;
   taskId: string | null;
+  latestMitigationRunId: string | null;
+  setLatestMitigationRunId: (val: string | null) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -121,9 +125,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
-  const [taskId, setTaskId] = useState<string | null>(
-    () => localStorage.getItem('latest_task_id')
-  );
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [latestMitigationRunId, setLatestMitigationRunId] = useState<string | null>(null);
+  const { user } = useAuth();
 
   // ── Plain-English explanation cache ─────────────────────────────────────────
   // Filled by a single batch call right after analysis, so each "Explain this" click is
@@ -181,7 +185,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       fd.append('metric_priority', metricPriority);
       fd.append('domain', domain);
       if (positiveLabel) fd.append('positive_label', positiveLabel);
-      fd.append('exclude_sensitive', String(excludeSensitive));
+      // exclude_sensitive is permanently False on the backend — sensitive columns
+      // are always included in training for attribute-aware bias detection.
       // Pass an uploaded custom model so the pipeline uses it instead of the built-in model
       if (modelFile) fd.append('custom_model_file', modelFile);
 
@@ -189,7 +194,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const kickoff = await formApi.post('/pipeline/run-all', fd, { timeout: 60000 });
       const { task_id } = kickoff.data as { task_id: string; status: string };
 
-      localStorage.setItem('active_analysis_task', task_id);
+      api.patch('/user/state', { active_analysis_task: task_id }).catch(() => {});
       
       // Wait 1s for backend to initialize before first poll
       await new Promise(r => setTimeout(r, 1000));
@@ -197,10 +202,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       setResultsFromPipeline(data);
       await refreshProjects();
-      localStorage.removeItem('active_analysis_task');
+      api.patch('/user/state', { active_analysis_task: null }).catch(() => {});
       // Persist the completed task_id for regroup requests
       setTaskId(task_id);
-      localStorage.setItem('latest_task_id', task_id);
+      api.patch('/user/state', { latest_task_id: task_id }).catch(() => {});
 
     } catch (err) {
       const e = err as { code?: string; message?: string; response?: { data?: { detail?: string } } };
@@ -253,25 +258,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
 
 
-  // 4. Resume active task on reload
+  // Cloud user state hydration and active task resumption
   React.useEffect(() => {
-    const activeTask = localStorage.getItem('active_analysis_task');
-    if (activeTask && !pipelineResults && !isAnalyzing) {
-      setIsAnalyzing(true);
-      pollTaskStatus(activeTask)
-        .then(data => {
-          setResultsFromPipeline(data);
-          refreshProjects();
-          localStorage.removeItem('active_analysis_task');
-          setIsAnalyzing(false);
-        })
-        .catch(err => {
-          console.error('Failed to resume task', err);
-          localStorage.removeItem('active_analysis_task');
-          setIsAnalyzing(false);
-        });
+    if (user) {
+      api.get('/user/state').then(res => {
+        const state = res.data;
+        if (state.active_project_id && !projectId) {
+          setProjectId(state.active_project_id);
+        }
+        if (state.latest_task_id && !taskId) {
+          setTaskId(state.latest_task_id);
+        }
+        if (state.latest_mitigation_run_id && !latestMitigationRunId) {
+          setLatestMitigationRunId(state.latest_mitigation_run_id);
+        }
+        
+        // Resume active task if any
+        if (state.active_analysis_task && !pipelineResults && !isAnalyzing) {
+          setIsAnalyzing(true);
+          pollTaskStatus(state.active_analysis_task)
+            .then(data => {
+              setResultsFromPipeline(data);
+              refreshProjects();
+              api.patch('/user/state', { active_analysis_task: null }).catch(() => {});
+              setIsAnalyzing(false);
+            })
+            .catch(err => {
+              console.error('Failed to resume task', err);
+              api.patch('/user/state', { active_analysis_task: null }).catch(() => {});
+              setIsAnalyzing(false);
+            });
+        }
+      }).catch(err => console.error('Failed to load user state', err));
     }
-  }, [projectId]);
+  }, [user]);
 
   const setResultsFromPipeline = (data: PipelineFullResult) => {
     const result = (data as Record<string, unknown>)?.details ?? (data as Record<string, unknown>)?.result ?? data;
@@ -409,33 +429,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // ── Persistence & Hydration ────────────────────────────────────────────────
 
-  // 1. Initial hydration from localStorage
-  React.useEffect(() => {
-    const savedId = localStorage.getItem('active_project_id');
-    if (savedId && !projectId) {
-      setProjectId(savedId);
-    }
-  }, []);
-
   // 2. Validate projectId still exists after projects load
   React.useEffect(() => {
     if (projects.length > 0 && projectId) {
       const exists = projects.some(p => String(p.id) === String(projectId));
       if (!exists) {
         setProjectId(null);
-        localStorage.removeItem('active_project_id');
+        if (user) api.patch('/user/state', { active_project_id: null }).catch(() => {});
       }
     }
-  }, [projects, projectId]);
+  }, [projects, projectId, user]);
 
   // 3. Persist projectId when it changes
   React.useEffect(() => {
-    if (projectId) {
-      localStorage.setItem('active_project_id', projectId);
-    } else {
-      localStorage.removeItem('active_project_id');
+    if (user && projectId) {
+      api.patch('/user/state', { active_project_id: projectId }).catch(() => {});
     }
-  }, [projectId]);
+  }, [projectId, user]);
+
+  React.useEffect(() => {
+    if (user && latestMitigationRunId) {
+      api.patch('/user/state', { latest_mitigation_run_id: latestMitigationRunId }).catch(() => {});
+    }
+  }, [latestMitigationRunId, user]);
 
   // 3. Auto-load latest results & Navigate to latest step
   React.useEffect(() => {
@@ -468,7 +484,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
   const projectName = currentProject?.name ?? null;
 
-  React.useEffect(() => { refreshProjects(); }, []);
+  React.useEffect(() => {
+    if (user) refreshProjects();
+  }, [user]);
 
   return (
     <AppContext.Provider value={{
@@ -489,6 +507,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setResultsFromPipeline,
       getExplanation, cacheExplanation, explanationsReady,
       taskId,
+      latestMitigationRunId, setLatestMitigationRunId,
     }}>
       {children}
     </AppContext.Provider>

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import os
 import uuid
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
-from sqlalchemy.orm import Session
 
-from models.db import AuditRun, Project, get_db
+from core import store
+from core.firebase_auth import get_current_user
+from core.authz import require_project
 from core.common import get_metric_weights
 from .pipeline import _run_pipeline, _store_set
 
@@ -16,130 +17,133 @@ router = APIRouter(prefix="/project", tags=["project"])
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+
 @router.post("/create")
 async def create_project(
     name: str = Form(...),
     domain: str = Form(default="general"),
-    sensitive_cols: Optional[str] = Form(None),
+    sensitive_cols: str | None = Form(None),
     target_col: str = Form(default=""),
-    db: Session = Depends(get_db),
+    user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-
     sensitive_list = [col.strip() for col in (sensitive_cols or "").split(",") if col.strip()]
-    project = Project(
+    project = store.create_project(
         name=name,
         domain=domain,
         sensitive_columns=sensitive_list,
         target_column=target_col,
+        metric_priority="balanced",
+        owner_uid=user["uid"],
     )
-    db.add(project)
-    db.commit()
-    db.refresh(project)
-    return {"project_id": project.id, "status": "created"}
+    return {"project_id": project["id"], "status": "created"}
+
 
 @router.post("/{project_id}/upload")
 async def upload_assets(
     project_id: int,
     dataset: UploadFile = File(...),
-    model_file: Optional[UploadFile] = File(default=None),
-    db: Session = Depends(get_db),
+    model_file: UploadFile | None = File(default=None),
+    user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = require_project(project_id, user)
 
     dataset_path = os.path.join(UPLOAD_DIR, f"proj_{project_id}_data_{dataset.filename}")
     with open(dataset_path, "wb") as f:
         f.write(await dataset.read())
-    project.dataset_path = dataset_path
+
+    update_fields: dict[str, Any] = {"dataset_path": dataset_path, "max_step": 2}
 
     if model_file and model_file.filename:
         model_path = os.path.join(UPLOAD_DIR, f"proj_{project_id}_model_{model_file.filename}")
         with open(model_path, "wb") as f:
             f.write(await model_file.read())
-        project.model_path = model_path
+        update_fields["model_path"] = model_path
 
-    db.commit()
-    # Reset progress to Step 2 after upload
-    project.max_step = 2
-    db.commit()
+    store.update_project(project_id, **update_fields)
     return {"status": "uploaded", "dataset_path": dataset_path}
+
 
 @router.post("/{project_id}/run")
 async def run_project_pipeline(
     project_id: int,
     background_tasks: BackgroundTasks,
     metric_priority: str = Form(default="balanced"),
-    db: Session = Depends(get_db),
+    user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    # Progress: Once they run analysis in Step 2, they can move to Step 3
-    project.max_step = max(project.max_step, 3)
-    db.commit()
+    project = require_project(project_id, user)
 
-    if not project.dataset_path or not os.path.exists(project.dataset_path):
+    store.update_project(project_id, max_step=max(project.get("max_step", 1), 3))
+
+    dataset_path = project.get("dataset_path")
+    if not dataset_path or not os.path.exists(dataset_path):
         raise HTTPException(status_code=400, detail="No dataset uploaded for this project")
 
-    with open(project.dataset_path, "rb") as f:
+    with open(dataset_path, "rb") as f:
         df_bytes = f.read()
-    
+
     model_bytes = None
-    if project.model_path and os.path.exists(project.model_path):
-        with open(project.model_path, "rb") as f:
+    model_path = project.get("model_path")
+    if model_path and os.path.exists(model_path):
+        with open(model_path, "rb") as f:
             model_bytes = f.read()
 
     task_id = str(uuid.uuid4())
     _store_set(task_id, {"status": "queued"})
-    
+
     metric_weights = get_metric_weights(metric_priority)
 
     background_tasks.add_task(
         _run_pipeline,
         task_id=task_id,
         df_bytes=df_bytes,
-        filename=os.path.basename(project.dataset_path),
-        sensitive_list=project.sensitive_columns,
-        target_col=project.target_column,
-        project_id=project.id,
+        filename=os.path.basename(dataset_path),
+        sensitive_list=project.get("sensitive_columns", []),
+        target_col=project.get("target_column", ""),
+        project_id=project_id,
         metric_weights=metric_weights,
         model_bytes=model_bytes,
-        domain=project.domain,
+        domain=project.get("domain", "general"),
+        owner_uid=user["uid"],
     )
 
     return {"task_id": task_id, "status": "processing"}
 
+
 @router.get("/{project_id}/compare")
-async def compare_project_runs(project_id: int, db: Session = Depends(get_db)) -> list[dict[str, Any]]:
-    runs = db.query(AuditRun).filter(AuditRun.project_id == project_id).order_by(AuditRun.timestamp.desc()).all()
+async def compare_project_runs(
+    project_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    require_project(project_id, user)
+    runs = store.list_audit_runs(project_id)
     return [
         {
-            "run_id": run.id,
-            "fairness_score": run.fairness_score,
-            "accuracy": run.accuracy,
-            "decision": run.decision,
-            "timestamp": run.timestamp.isoformat(),
+            "run_id": r["id"],
+            "fairness_score": r.get("fairness_score"),
+            "accuracy": r.get("accuracy"),
+            "decision": r.get("decision"),
+            "timestamp": r.get("timestamp"),
         }
-        for run in runs
+        for r in runs
     ]
 
+
 @router.get("/list")
-async def list_projects(db: Session = Depends(get_db)) -> list[dict[str, Any]]:
-    projects = db.query(Project).all()
+async def list_projects(user: dict[str, Any] = Depends(get_current_user)) -> list[dict[str, Any]]:
+    projects = store.list_projects(user["uid"])
     return [
         {
-            "id": p.id,
-            "name": p.name,
-            "domain": p.domain,
-            "metric_priority": p.metric_priority or "balanced",
-            "sensitive_columns": p.sensitive_columns,
-            "target_column": p.target_column,
-            "max_step": p.max_step,
+            "id": p["id"],
+            "name": p["name"],
+            "domain": p.get("domain", "general"),
+            "metric_priority": p.get("metric_priority") or "balanced",
+            "sensitive_columns": p.get("sensitive_columns", []),
+            "target_column": p.get("target_column"),
+            "max_step": p.get("max_step", 1),
         }
         for p in projects
     ]
+
 
 @router.patch("/{project_id}/config")
 async def update_project_config(
@@ -148,69 +152,69 @@ async def update_project_config(
     target_col: str = Form(...),
     domain: str = Form(default=""),
     metric_priority: str = Form(default=""),
-    db: Session = Depends(get_db),
+    user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    require_project(project_id, user)
 
     sensitive_list = [col.strip() for col in sensitive_cols.split(",") if col.strip()]
-    project.sensitive_columns = sensitive_list
-    project.target_column = target_col
-    # Persist the Step 2 choices so the project remembers them (only overwrite when sent).
+    fields: dict[str, Any] = {
+        "sensitive_columns": sensitive_list,
+        "target_column": target_col,
+        "max_step": 2,
+    }
     if domain:
-        project.domain = domain
+        fields["domain"] = domain
     if metric_priority:
-        project.metric_priority = metric_priority
+        fields["metric_priority"] = metric_priority
 
-    # If they change config, they shouldn't jump past Step 3 until they re-run analysis
-    project.max_step = 2
-    db.commit()
+    store.update_project(project_id, **fields)
     return {"status": "updated"}
+
 
 @router.patch("/{project_id}/step")
 async def update_project_step(
     project_id: int,
     step: int = Form(...),
-    db: Session = Depends(get_db),
+    user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    project.max_step = max(project.max_step, step)
-    db.commit()
-    return {"status": "success", "max_step": project.max_step}
+    project = require_project(project_id, user)
+    new_step = max(project.get("max_step", 1), step)
+    store.update_project(project_id, max_step=new_step)
+    return {"status": "success", "max_step": new_step}
+
 
 @router.get("/{project_id}/latest")
-async def get_latest_results(project_id: int, db: Session = Depends(get_db)) -> dict[str, Any]:
-    run = db.query(AuditRun).filter(AuditRun.project_id == project_id).order_by(AuditRun.timestamp.desc()).first()
+async def get_latest_results(
+    project_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    require_project(project_id, user)
+    run = store.latest_audit_run(project_id)
     if not run:
         return {"status": "none"}
     return {
         "status": "complete",
-        "result": run.full_result_json,
-        "fairness_score": run.fairness_score,
-        "accuracy": run.accuracy
+        "result": run.get("full_result_json", {}),
+        "fairness_score": run.get("fairness_score"),
+        "accuracy": run.get("accuracy"),
     }
 
+
 @router.delete("/{project_id}")
-async def delete_project(project_id: int, db: Session = Depends(get_db)) -> dict[str, Any]:
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+async def delete_project(
+    project_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    project = require_project(project_id, user)
 
-    if project.dataset_path and os.path.exists(project.dataset_path):
-        try:
-            os.remove(project.dataset_path)
-        except Exception:
-            pass
-    if project.model_path and os.path.exists(project.model_path):
-        try:
-            os.remove(project.model_path)
-        except Exception:
-            pass
+    # Clean up uploaded files from disk
+    for path_key in ("dataset_path", "model_path"):
+        p = project.get(path_key)
+        if p and os.path.exists(p):
+            try:
+                os.remove(p)
+            except Exception:
+                pass
 
-    db.delete(project)
-    db.commit()
+    store.delete_project(project_id)
     return {"status": "deleted"}

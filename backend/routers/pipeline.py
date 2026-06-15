@@ -13,7 +13,6 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
-from sqlalchemy.orm import Session
 
 from core.auto_fix import generate_fix_recommendations
 from core.counterfactual import run_counterfactual_test
@@ -23,7 +22,8 @@ from core.feature_intelligence import detect_proxy_features
 from core.common import build_classifier, fit_classifier, get_metric_weights, prepare_split, resolve_positive_label, validate_target_column
 from core.model_bias import run_model_bias_analysis
 from core.stress_test import run_stress_tests
-from models.db import AuditRun, Project, MonitoringLog, Alert, get_db
+from core import store
+from core.firebase_auth import get_current_user
 from utils.model_loader import load_model_from_bytes
 
 logger = logging.getLogger(__name__)
@@ -55,13 +55,13 @@ def _run_pipeline(
     domain: str,
     positive_label: str | None = None,
     exclude_sensitive: bool = False,
+    owner_uid: str = "",
 ) -> None:
     """Background worker: runs all 8 stages and writes result to task_store."""
     import io
     import pandas as pd
     import numpy as np
     import math
-    from models.db import SessionLocal
 
     def convert_np_to_python(obj: Any) -> Any:
         if isinstance(obj, dict):
@@ -83,20 +83,18 @@ def _run_pipeline(
         return obj
 
     _store_set(task_id, {"status": "processing"})
-    db: Session = SessionLocal()
 
     try:
         if not project_id or str(project_id) in ("", "null", "undefined", "None"):
-            project = Project(
+            new_project = store.create_project(
                 name="Auto Project",
                 domain=domain,
                 sensitive_columns=sensitive_list,
                 target_column=target_col,
+                metric_priority="balanced",
+                owner_uid=owner_uid,
             )
-            db.add(project)
-            db.commit()
-            db.refresh(project)
-            project_id = project.id
+            project_id = new_project["id"]
         else:
             project_id = int(project_id)
 
@@ -110,10 +108,9 @@ def _run_pipeline(
         with open(saved_csv_path, "wb") as _f:
             _f.write(df_bytes)
         # Update the project record only if dataset_path is not already set
-        proj_record = db.query(Project).filter(Project.id == project_id).first()
-        if proj_record and not proj_record.dataset_path:
-            proj_record.dataset_path = saved_csv_path
-            db.commit()
+        proj_record = store.get_project(project_id)
+        if proj_record and not proj_record.get("dataset_path"):
+            store.update_project(project_id, dataset_path=saved_csv_path)
 
         # ── Normalize the target to 0/1 once, with the favorable outcome = 1 ──────
         # Doing this up front (rather than per-engine) means every stage shares the same
@@ -249,29 +246,30 @@ def _run_pipeline(
 
         result = convert_np_to_python(result)
 
-        # ── Persist to DB ──────────────────────────────────────────────────────
+        # ── Persist to Firestore ───────────────────────────────────────────────
         risk_level = data_audit.get("risk_level", "Yellow")
-        audit_run = AuditRun(
+        audit_run = store.create_audit_run(
             project_id=project_id,
             fairness_score=float(unified_fairness_score),
             accuracy=float(model_bias.get("overall_accuracy", 0.0)),
             risk_level=risk_level,
             decision=decision,
-            results_json={},  # Clear old field to save space/time
-            full_result_json=result,
+            full_result_json=result,  # temporary — updated below with audit_run_id
             task_id=task_id,
         )
-        db.add(audit_run)
-        db.commit()
-        db.refresh(audit_run)
-        
-        result["audit_run_id"] = audit_run.id
 
-        log_entry = MonitoringLog(
+        # Inject audit_run_id into result so Sandbox Fixes (and any other page that
+        # reads audit_run_id from pipelineResults) works correctly after a browser
+        # refresh — GET /project/{id}/latest reads full_result_json from Firestore, so
+        # audit_run_id MUST be inside it.
+        result["audit_run_id"] = audit_run["id"]
+
+        # Write the complete result (with audit_run_id) back into Firestore.
+        store.update_audit_run(audit_run["id"], full_result_json=result)
+
+        store.create_monitoring_log(
             project_id=project_id,
             fairness_score=float(unified_fairness_score),
-            data_drift_score=0.0,
-            prediction_drift_score=0.0,
             key_metrics=convert_np_to_python({
                 "accuracy": float(model_bias.get("overall_accuracy", 0.0)),
                 "disparate_impact": model_bias.get("disparate_impact", {}).get("ratio"),
@@ -279,41 +277,38 @@ def _run_pipeline(
                 "max_gap": data_audit.get("max_gap", 0.0)
             })
         )
-        db.add(log_entry)
-        
+
         if unified_fairness_score < 50:
-            db.add(Alert(
+            store.create_alert(
                 project_id=project_id,
                 type="BIAS",
                 message=f"Critical bias detected. Fairness score: {unified_fairness_score:.1f}.",
-                severity="HIGH"
-            ))
+                severity="HIGH",
+            )
 
-        last_log = db.query(MonitoringLog).filter(MonitoringLog.project_id == project_id).order_by(MonitoringLog.timestamp.desc()).first()
-        if last_log and last_log.fairness_score > 0:
-            drop_pct = (last_log.fairness_score - unified_fairness_score) / last_log.fairness_score
-            if drop_pct > 0.15:
-                db.add(Alert(
-                    project_id=project_id,
-                    type="DRIFT",
-                    message=f"Critical score drift: {drop_pct*100:.1f}% drop from previous.",
-                    severity="HIGH"
-                ))
-
-        prev_logs = db.query(MonitoringLog).filter(MonitoringLog.project_id == project_id).order_by(MonitoringLog.timestamp.desc()).limit(2).all()
-        if len(prev_logs) == 2:
-            s1 = prev_logs[1].fairness_score 
-            s2 = prev_logs[0].fairness_score 
+        prev_logs = store.list_monitoring_logs(project_id, limit=3)
+        if len(prev_logs) >= 2:
+            last_log = prev_logs[0]
+            if last_log.get("fairness_score", 0) > 0:
+                drop_pct = (last_log["fairness_score"] - unified_fairness_score) / last_log["fairness_score"]
+                if drop_pct > 0.15:
+                    store.create_alert(
+                        project_id=project_id,
+                        type="DRIFT",
+                        message=f"Critical score drift: {drop_pct*100:.1f}% drop from previous.",
+                        severity="HIGH",
+                    )
+        if len(prev_logs) >= 3:
+            s1 = prev_logs[2].get("fairness_score", 0)
+            s2 = prev_logs[1].get("fairness_score", 0)
             s3 = unified_fairness_score
             if s1 > s2 > s3:
-                db.add(Alert(
+                store.create_alert(
                     project_id=project_id,
                     type="DEGRADATION",
                     message="Sequential degradation detected over 3+ runs.",
-                    severity="MEDIUM"
-                ))
-
-        db.commit()
+                    severity="MEDIUM",
+                )
 
         _store_set(task_id, {
             "status": "complete",
@@ -331,8 +326,6 @@ def _run_pipeline(
         logger.exception("Pipeline task %s failed", task_id)
         _store_set(task_id, {"status": "error", "error": str(exc)})
 
-    finally:
-        db.close()
 
 
 @router.post("/run-all")
@@ -346,8 +339,8 @@ async def run_all(
     metric_priority: str = Form(default="balanced"),
     domain: str = Form(default="general"),
     positive_label: str = Form(default=""),
-    exclude_sensitive: str = Form(default="false"),
     custom_model_file: UploadFile | None = None,
+    user: dict = Depends(get_current_user),
 ) -> dict[str, str]:
     """
     Accepts the CSV and optional model file, immediately returns a task_id.
@@ -425,48 +418,48 @@ async def run_all(
         model_bytes=model_bytes,
         domain=domain,
         positive_label=positive_label or None,
-        exclude_sensitive=str(exclude_sensitive).strip().lower() not in ("false", "0", "no", ""),
+        exclude_sensitive=False,   # always False — audit model always trains with sensitive columns
+        owner_uid=user["uid"],
     )
 
     return {"task_id": task_id, "status": "processing"}
 
 
 @router.get("/status/{task_id}")
-async def get_task_status(task_id: str, db: Session = Depends(get_db)) -> dict[str, Any]:
+async def get_task_status(task_id: str) -> dict[str, Any]:
     """Poll this endpoint after calling /pipeline/run-all to retrieve results."""
     task = _store_get(task_id)
     if task is not None:
         return task
-        
-    # If not in memory, check if it was completed and saved to DB (e.g., after server restart)
-    from models.db import AuditRun
-    audit = db.query(AuditRun).filter(AuditRun.task_id == task_id).first()
+
+    # If not in memory, check Firestore (handles server restarts)
+    audit = store.get_audit_run_by_task(task_id)
     if audit:
-        return {"status": "complete", "result": audit.full_result_json}
-        
+        return {"status": "complete", "result": audit.get("full_result_json", {})}
+
     raise HTTPException(status_code=404, detail="Task not found")
 
 
 @router.get("/result/{task_id}")
-async def get_task_result(task_id: str, db: Session = Depends(get_db)) -> dict[str, Any]:
+async def get_task_result(task_id: str) -> dict[str, Any]:
     """Fetches the final persistent result of a pipeline run."""
     # Check in-memory first
     task = _store_get(task_id)
     if task and task.get("status") in ["queued", "processing"]:
         return {"status": "running"}
 
-    # Fetch from DB for persistence
-    audit = db.query(AuditRun).filter(AuditRun.task_id == task_id).first()
+    # Fetch from Firestore for persistence across server restarts
+    audit = store.get_audit_run_by_task(task_id)
     if not audit:
         if task and task.get("status") == "error":
             return {"status": "error", "error": task.get("error")}
-        raise HTTPException(status_code=404, detail="Audit result not found in database")
+        raise HTTPException(status_code=404, detail="Audit result not found")
 
-    res = audit.full_result_json
+    res = audit.get("full_result_json", {})
     return {
         "status": "completed",
-        "fairness_score": audit.fairness_score,
-        "decision": audit.decision,
+        "fairness_score": audit.get("fairness_score"),
+        "decision": audit.get("decision"),
         "scores": res.get("scores", {}),
         "recommendations": res.get("recommendations", []),
         "details": res

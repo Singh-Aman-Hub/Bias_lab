@@ -12,9 +12,11 @@ import {
   ShieldAlert,
   Upload,
   Zap,
+  LogOut,
 } from 'lucide-react';
 import ProjectSelector from './ProjectSelector';
 import { useAppContext } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 
 const STEPS = [
   { id: 1, to: '/workflow/step-1', label: 'Upload', icon: Upload },
@@ -30,7 +32,8 @@ const STEPS = [
 
 export default function WorkflowShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const { maxStep } = useAppContext();
+  const { maxStep, latestMitigationRunId } = useAppContext();
+  const { logout } = useAuth();
 
   const isDashboard = location.pathname === '/dashboard';
   // Fallback to step 1 if not found, unless we are explicitly on the dashboard
@@ -78,7 +81,7 @@ export default function WorkflowShell({ children }: { children: React.ReactNode 
             
             // Mitigation Results requires step 9 (which means maxStep >= 9) 
             const isMitigationResults = step.to === '/workflow/mitigation-results';
-            const mitigationRunId = localStorage.getItem('latest_mitigation_run_id');
+            const mitigationRunId = latestMitigationRunId;
             const isLocked = (step.id > maxStep && step.id > 2) || (isMitigationResults && !mitigationRunId);
             // Allow step 1 and 2 always; lock rest until unlocked
 
@@ -133,16 +136,29 @@ export default function WorkflowShell({ children }: { children: React.ReactNode 
             <div style={{ width: 1, height: 24, background: 'var(--border)', opacity: 0.3 }} />
           </div>
 
-          <div style={{ minWidth: 280, textAlign: 'right' }}>
-            <div style={{ 
-              color: '#fff', fontWeight: 700, fontSize: '0.95rem', letterSpacing: '1.5px', 
-              textTransform: 'uppercase', opacity: 0.9 
-            }}>
-              {currentLabel}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ 
+                color: '#fff', fontWeight: 700, fontSize: '0.95rem', letterSpacing: '1.5px', 
+                textTransform: 'uppercase', opacity: 0.9 
+              }}>
+                {currentLabel}
+              </div>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '0.74rem', letterSpacing: '0.18em', marginTop: 4, textTransform: 'uppercase' }}>
+                {currentMeta}
+              </div>
             </div>
-            <div style={{ color: 'var(--text-secondary)', fontSize: '0.74rem', letterSpacing: '0.18em', marginTop: 4, textTransform: 'uppercase' }}>
-              {currentMeta}
-            </div>
+            
+            <div style={{ width: 1, height: 24, background: 'var(--border)', opacity: 0.3 }} />
+            
+            <button 
+              className="btn btn-ghost" 
+              onClick={() => logout()}
+              title="Sign Out"
+              style={{ color: 'var(--text-secondary)', padding: '8px' }}
+            >
+              <LogOut size={18} />
+            </button>
           </div>
         </header>
 

@@ -34,7 +34,7 @@ interface CandidatesResponse {
 }
 
 export default function Step8Sandbox() {
-  const { projectId, advanceStep, file, pipelineResults } = useAppContext();
+  const { projectId, advanceStep, file, pipelineResults, setLatestMitigationRunId } = useAppContext();
   const navigate = useNavigate();
 
   const auditRunId = (pipelineResults as any)?.audit_run_id;
@@ -68,15 +68,11 @@ export default function Step8Sandbox() {
       .finally(() => setLoading(false));
   }, [auditRunId]);
 
-  if (!file) {
-    return (
-      <div className="card" style={{ padding: 40, textAlign: 'center' }}>
-        <h2 style={{ marginBottom: 16 }}>No dataset uploaded</h2>
-        <p className="helper" style={{ marginBottom: 24 }}>Please go back and upload a dataset to begin.</p>
-        <button className="btn btn-primary" onClick={() => navigate('/workflow/step-1')}>Go to Upload</button>
-      </div>
-    );
-  }
+  // NOTE: `file` is NOT checked here — it is a browser File object that cannot
+  // survive a page refresh. All page data is fetched from the API via auditRunId,
+  // which comes from pipelineResults (restored from the server on refresh).
+  // `file` is only needed at submission time (runSandboxSimulation) and is
+  // checked at that point instead.
 
   if (loading) {
     return (
@@ -161,7 +157,7 @@ export default function Step8Sandbox() {
       
       const mitigationRunId = res.data.mitigation_run_id;
       const taskId = res.data.task_id;
-      localStorage.setItem('latest_mitigation_run_id', String(mitigationRunId));
+      setLatestMitigationRunId(String(mitigationRunId));
       await advanceStep(9);
       navigate(`/workflow/mitigation-results/${mitigationRunId}?taskId=${taskId}`);
     } catch (err: any) {
