@@ -82,12 +82,64 @@ export function buildExplainItems(
   // ── Counterfactual (Step 4 card + Step 6) ─────────────────────────────────
   const cf = results.counterfactual;
   if (cf) {
-    const flipVerdict = cf.flip_rate <= 0.05 ? 'Low sensitivity' : cf.flip_rate <= 0.15 ? 'Moderate sensitivity' : 'High sensitivity';
+    const flipVerdict = cf.flip_rate <= 0.03 ? 'Low sensitivity' : cf.flip_rate <= 0.10 ? 'Moderate sensitivity' : 'High sensitivity';
+    // Top 3 breakdown rows by flip_rate (for LLM context).
+    const topBreakdown = (cf.breakdown ?? []).slice(0, 3).map((r) => ({
+      from_group: r.from_group,
+      to_group: r.to_group,
+      flips: r.flips,
+      tested: r.tested,
+      flip_rate: r.flip_rate,
+    }));
     items.push({ metric: 'counterfactual_flip_rate', label: 'Counterfactual Flip Rate', value: cf.flip_rate, domain,
       interpretation: flipVerdict,
-      facts: { flip_rate: cf.flip_rate, interpretation: cf.interpretation, flip_breakdown: cf.flip_breakdown,
-               threshold_low: 0.05, threshold_moderate: 0.15, verdict: flipVerdict } });
+      facts: {
+        flip_rate: cf.flip_rate,
+        interpretation: cf.interpretation,
+        flip_breakdown: cf.flip_breakdown,
+        attribute_tested: cf.attribute_tested,
+        was_binned: cf.was_binned,
+        binning_strategy: cf.binning_strategy,
+        total_records_tested: cf.total_records_tested,
+        total_flips: cf.total_flips,
+        risk_level: cf.risk_level,
+        warnings: cf.warnings,
+        top_breakdown_rows: topBreakdown,
+        sample_flip_count: (cf.sample_flips ?? []).length,
+        no_flips_found: (cf.total_flips ?? 0) === 0,
+        threshold_low: 0.03,
+        threshold_medium: 0.10,
+        verdict: flipVerdict,
+      } });
+
+    // Second batch item: page-level counterfactual explanations for Step 6.
+    // The LLM returns 7 sub-fields; the frontend reads them from the cache
+    // via getExplanation('counterfactual_page'). No new Gemini call is needed on the page.
+    items.push({
+      metric: 'counterfactual_page',
+      label: 'Counterfactual Testing — Page Explanations',
+      value: cf.flip_rate,
+      domain,
+      interpretation: flipVerdict,
+      facts: {
+        attribute_tested: cf.attribute_tested,
+        was_binned: cf.was_binned,
+        binning_strategy: cf.binning_strategy,
+        total_records_tested: cf.total_records_tested,
+        total_flips: cf.total_flips,
+        flip_rate: cf.flip_rate,
+        counterfactual_fairness_score: cf.counterfactual_fairness_score,
+        risk_level: cf.risk_level,
+        top_breakdown_rows: topBreakdown,
+        sample_flip_count: (cf.sample_flips ?? []).length,
+        warnings: cf.warnings,
+        no_flips_found: (cf.total_flips ?? 0) === 0,
+        // Special instruction for the LLM — return a nested object with 7 sub-fields
+        __output_schema__: 'Return a JSON object with EXACTLY these 7 string fields: page_summary, flip_rate_card_explanation, fairness_score_card_explanation, attribute_flip_breakdown_explanation, sample_flip_explanation, warnings_explanation, recommended_next_steps. Never invent numbers. If a value is 0 or missing, say so plainly.',
+      },
+    });
   }
+
 
   // ── Data Audit (Step 3) ───────────────────────────────────────────────────
   const audit = results.data_audit as

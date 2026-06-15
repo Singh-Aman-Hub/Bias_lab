@@ -3,19 +3,24 @@ import ExplainThis from '../../components/ExplainThis';
 import ChatHelpButton from '../../components/ChatHelpButton';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
-import { ArrowRight, ArrowLeft } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Loader } from 'lucide-react';
 import { scoreColor } from '../../utils/score';
 import { buildExplainItems } from '../../utils/explainItems';
 import type { DataAuditResult, ProxyResult } from '../../types';
+import { AnalysisProgressOverlay } from './AnalysisProgress';
 
 export default function Step3DataAudit() {
-  const { pipelineResults, auditResult: audit, proxyResult: proxy, domain, advanceStep } = useAppContext();
+  const { pipelineResults, auditResult: audit, proxyResult: proxy, domain, advanceStep, isAnalyzing, analyzeError } = useAppContext();
   const navigate = useNavigate();
   const explainItems = useMemo(() => buildExplainItems(pipelineResults, domain), [pipelineResults, domain]);
   const auditExplain = explainItems.find((i) => i.metric === 'data_audit_overall');
   const proxyExplain = explainItems.find((i) => i.metric === 'data_audit_proxy');
 
   const auditData = audit as DataAuditResult & { under_represented_groups?: string[]; risk_reason?: string };
+
+  // Show the overlay whenever analysis is in-flight or results aren't ready yet.
+  // The overlay itself handles timing + navigation — we just render it and wait.
+  const showOverlay = isAnalyzing || !!analyzeError || !pipelineResults;
 
   // Backend risk_level is "Red" | "Yellow" | "Green"; map to human-readable severity.
   const RISK_LABEL: Record<string, string> = { Red: 'High', Yellow: 'Moderate', Green: 'Low' };
@@ -100,22 +105,28 @@ export default function Step3DataAudit() {
 
   if (!pipelineResults || !audit || !proxy) {
     return (
-      <div>
-        <div className="page-header">
-          <div>
-            <div className="kicker">Step 3 of 9</div>
-            <h1 className="page-title">Data Audit</h1>
+      <>
+        {/* Overlay sits on top — handles timing, stages, and navigation */}
+        {showOverlay && <AnalysisProgressOverlay />}
+
+        {/* Waiting placeholder underneath */}
+        <div>
+          <div className="page-header">
+            <div>
+              <div className="kicker">Step 3 of 9</div>
+              <h1 className="page-title">Data Audit</h1>
+            </div>
+          </div>
+          <div className="card" style={{ padding: 48, textAlign: 'center' }}>
+            <Loader size={28} color="var(--accent)" style={{ animation: 'spin 1.2s linear infinite', marginBottom: 20 }} />
+            <p style={{ margin: '0 0 8px', fontWeight: 600, color: 'var(--text-primary)' }}>Waiting for analysis to complete…</p>
+            <p className="helper" style={{ margin: 0 }}>Your audit results will appear here once the pipeline finishes.</p>
           </div>
         </div>
-        <div className="card" style={{ padding: 40, textAlign: 'center' }}>
-          <p className="helper" style={{ marginBottom: 24 }}>No analysis data yet. Please run the analysis first.</p>
-          <button className="btn btn-primary" onClick={() => navigate('/workflow/step-2')}>
-            Go to Configuration <ArrowRight size={16} />
-          </button>
-        </div>
-      </div>
+      </>
     );
   }
+
 
   return (
     <div>

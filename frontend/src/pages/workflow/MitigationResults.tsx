@@ -175,7 +175,7 @@ export default function MitigationResults() {
     <div>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <div className="kicker">Step 9 of 10</div>
+          <div className="kicker">Step 9 of 9</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <h1 className="page-title" style={{ margin: 0 }}>Mitigation Results</h1>
             <ChatHelpButton section="Mitigation Results" description="View before and after comparison of your bias mitigation. Understand trade-offs between fairness and accuracy." />

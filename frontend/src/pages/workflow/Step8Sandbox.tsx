@@ -92,7 +92,7 @@ export default function Step8Sandbox() {
     return (
       <div>
         <div className="page-header">
-          <div className="kicker">Step 8 of 10</div>
+          <div className="kicker">Step 8 of 9</div>
           <h1 className="page-title">Sandbox Fixes</h1>
           <p className="helper">Review flagged decision patterns and choose which records should be excluded.</p>
         </div>
@@ -355,7 +355,7 @@ export default function Step8Sandbox() {
     <div style={{ paddingBottom: 100 }}>
       <div className="page-header">
         <div>
-          <div className="kicker">Step 8 of 10</div>
+          <div className="kicker">Step 8 of 9</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <h1 className="page-title" style={{ margin: 0 }}>Sandbox Fixes</h1>
             <ChatHelpButton section="Sandbox Fixes" description="Review decision patterns and simulate mitigation by excluding specific records to test fairness improvements." />

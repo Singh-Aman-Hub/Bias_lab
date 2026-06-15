@@ -98,7 +98,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [sensitiveCols, setSensitiveCols] = useState<string[]>([]);
   const [targetCol, setTargetCol] = useState('');
   const [positiveLabel, setPositiveLabel] = useState('');
-  const [excludeSensitive, setExcludeSensitive] = useState(true);
+  const [excludeSensitive, setExcludeSensitive] = useState(false);
   const [domain, setDomain] = useState('loan');
   const [projectId, setProjectId] = useState<string | null>(null);
   const [modelType, setModelType] = useState<'file' | 'api'>('file');
@@ -158,9 +158,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const runFullAnalysis = async () => {
     if (!file) return;
     
-    // Set analyzing state IMMEDIATELY before any async work
+    // Set analyzing state IMMEDIATELY before any async work.
+    // Also clear all previous results so Step3 (and other pages) don't
+    // render stale data from a prior run while the new analysis is in flight.
     setIsAnalyzing(true);
     setAnalyzeError(null);
+    setPipelineResults(null);
+    setAuditResult(null);
+    setProxyResult(null);
+    setBiasResult(null);
+    setExplainResult(null);
+    setCounterfactualResult(null);
+    setStressResult(null);
+    setRecommendResult(null);
 
     try {
       const fd = new FormData();

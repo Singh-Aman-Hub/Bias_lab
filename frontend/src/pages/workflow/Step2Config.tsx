@@ -3,79 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import { formApi } from '../../api/client';
 import { parseCsvHeader, parseCsvLine } from '../../utils/csv';
-import { ArrowRight, ArrowLeft, Loader, AlertTriangle, Lightbulb } from 'lucide-react';
+import { ArrowRight, ArrowLeft, AlertTriangle, Lightbulb } from 'lucide-react';
 
 // Plan item 10: Auto-suggest sensitive columns from known list
 const SENSITIVE_KEYWORDS = ['gender', 'sex', 'race', 'ethnicity', 'caste', 'religion', 'age', 'disability', 'region', 'zipcode', 'zip', 'nationality', 'citizenship', 'marital', 'pregnancy', 'language', 'color', 'colour', 'tribe', 'class', 'income'];
 
-const ANALYSIS_STAGES = [
-  'Scanning dataset for representation gaps',
-  'Detecting proxy feature correlations',
-  'Training model and computing fairness metrics',
-  'Calculating SHAP values for explanations',
-  'Running counterfactual fairness tests',
-  'Probing model under stress perturbations',
-  'Generating fix recommendations',
-];
 
-function AnalysisLoadingScreen({ error, onRetry }: { error: string | null; onRetry: () => void }) {
-  if (error) {
-    return (
-      <div className="analysis-screen">
-        <div className="analysis-card">
-          <div style={{ fontSize: '2.5rem', marginBottom: 16 }}>⚠️</div>
-          <h2 style={{ color: 'var(--red)', marginBottom: 12 }}>Analysis Failed</h2>
-          <p className="helper" style={{ marginBottom: 24 }}>{error}</p>
-          <button className="btn btn-primary" onClick={onRetry}>Retry Analysis</button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="analysis-screen">
-      <div className="analysis-card">
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div className="analysis-spinner-ring">
-            <Loader size={22} color="var(--text-primary)" style={{ animation: 'spin 1.2s linear infinite' }} />
-          </div>
-          <h2 style={{ margin: 0, marginBottom: 8, fontSize: '1.4rem', color: 'var(--text-primary)' }}>Running Full Analysis</h2>
-          <p className="helper" style={{ margin: 0 }}>
-            Computing all fairness stages. This can take up to a minute for larger files.
-          </p>
-        </div>
-
-        <div style={{ marginBottom: 28 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-            <span>Status</span>
-            <span>Running</span>
-          </div>
-          <div className="analysis-progress-track">
-            <div className="analysis-progress-indeterminate" />
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {ANALYSIS_STAGES.map((stage, i) => {
-            const active = i === 0;
-            return (
-              <div key={stage} className={`analysis-stage ${active ? 'is-active' : ''}`}>
-                {active ? (
-                  <Loader size={16} color="var(--accent)" className="analysis-stage-icon analysis-stage-icon-spinning" />
-                ) : (
-                  <Loader size={16} color="var(--text-secondary)" className="analysis-stage-icon" />
-                )}
-                <span className={`analysis-stage-label ${active ? 'is-active' : ''}`}>
-                  {stage}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function Step2Config() {
   const {
@@ -90,7 +23,6 @@ export default function Step2Config() {
     apiUrl, setApiUrl,
     requestFormat, setRequestFormat,
     metricPriority, setMetricPriority,
-    isAnalyzing, analyzeError,
     runFullAnalysis,
   } = useAppContext();
 
@@ -157,58 +89,30 @@ export default function Step2Config() {
       return;
     }
 
+    // Persist config — catch 404 gracefully
     try {
-      // Persist config — catch 404 gracefully
-      try {
-        const fd = new FormData();
-        fd.append('sensitive_cols', sensitiveCols.join(','));
-        fd.append('target_col', targetCol);
-        fd.append('domain', domain);
-        fd.append('metric_priority', metricPriority);
-        await formApi.patch(`/project/${projectId}/config`, fd);
-      } catch (configErr) {
-        console.warn('Could not persist config, continuing anyway:', configErr);
-      }
-
-      // runFullAnalysis handles its own isAnalyzing state internally
-      await runFullAnalysis();
-      navigate('/workflow/step-3');
-    } catch (err) {
-      const e = err as { response?: { data?: { detail?: string } }; message?: string };
-      const msg = analyzeError
-        ?? e.response?.data?.detail
-        ?? e.message
-        ?? 'Analysis failed. Please check the backend is running.';
-      setLocalError(msg);
+      const fd = new FormData();
+      fd.append('sensitive_cols', sensitiveCols.join(','));
+      fd.append('target_col', targetCol);
+      fd.append('domain', domain);
+      fd.append('metric_priority', metricPriority);
+      await formApi.patch(`/project/${projectId}/config`, fd);
+    } catch (configErr) {
+      console.warn('Could not persist config, continuing anyway:', configErr);
     }
+
+    // Fire-and-forget — do NOT await. Navigate to step-3 immediately so the
+    // AnalysisProgressOverlay renders on top while the backend runs in the background.
+    runFullAnalysis();
+    navigate('/workflow/step-3');
   };
 
-
-  // Show full-page loading/error overlay while analysis is running
-  if (isAnalyzing || (analyzeError && !localError)) {
-    return (
-      <AnalysisLoadingScreen
-        error={analyzeError}
-        onRetry={handleStartAnalysis}
-      />
-    );
-  }
-
-  // Show error state after a failed attempt
-  if (localError) {
-    return (
-      <AnalysisLoadingScreen
-        error={localError}
-        onRetry={handleStartAnalysis}
-      />
-    );
-  }
 
   return (
     <div>
       <div className="page-header">
         <div>
-          <div className="kicker">Step 2 of 10</div>
+          <div className="kicker">Step 2 of 9</div>
           <h1 className="page-title">Configuration</h1>
           <p className="page-subtitle">Select the sensitive attributes and define how the model should be accessed.</p>
         </div>
@@ -303,9 +207,9 @@ export default function Step2Config() {
               ))}
           </select>
 
-        </div>
+          <div style={{ height: 20 }} />
 
-        <div className="card">
+          {/* ── Target column — moved here from right card ── */}
           <div className="section-title">Target column</div>
           <p className="helper" style={{ marginBottom: 8 }}>The column the model predicts (e.g. 'Approved', 'Risk').</p>
           <select
@@ -345,9 +249,10 @@ export default function Step2Config() {
               </p>
             </div>
           )}
+        </div>
 
-          <div style={{ height: 24 }} />
-
+        {/* ── Right card: Project Domain + Fairness Priority ── */}
+        <div className="card">
           <div className="section-title">Project Domain</div>
           <p className="helper" style={{ marginBottom: 8 }}>Context-specific benchmarks for the audit.</p>
           <select 

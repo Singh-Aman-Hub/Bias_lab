@@ -174,16 +174,44 @@ export interface SampleFlip {
   record_id: number;
   original_value: string;
   flipped_value: string;
+  // Legacy keys (backward compat)
   original_decision: string;
   flipped_decision: string;
+  // New unified keys
+  original_prediction?: string;
+  flipped_prediction?: string;
+  original_raw_value?: number | string;
+  flipped_raw_value?: number | string;
+  changed?: boolean;
+}
+
+export interface CFBreakdownEntry {
+  from_group: string;
+  to_group: string;
+  tested: number;
+  flips: number;
+  flip_rate: number;
+  /** True if this pair is an adjacent step in the band ordering (e.g. 25-34 → 35-44). */
+  adjacent?: boolean;
 }
 
 export interface CounterfactualResult {
+  // Legacy / preserved fields
   flip_rate: number;
   counterfactual_fairness_score?: number;
   flip_breakdown?: Record<string, { rate: number; flips: number; total: number }>;
   interpretation?: string;
   sample_flips?: SampleFlip[];
+  // New enriched fields (optional so old results still type-check)
+  attribute_tested?: string;
+  sensitive_col?: string;
+  was_binned?: boolean;
+  binning_strategy?: string;
+  total_records_tested?: number;
+  total_flips?: number;
+  risk_level?: 'low' | 'medium' | 'high' | 'unknown';
+  warnings?: string[];
+  breakdown?: CFBreakdownEntry[];
 }
 
 export interface StressScenario {

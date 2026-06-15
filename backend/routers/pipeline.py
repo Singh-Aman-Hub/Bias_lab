@@ -54,7 +54,7 @@ def _run_pipeline(
     model_bytes: bytes | None,
     domain: str,
     positive_label: str | None = None,
-    exclude_sensitive: bool = True,
+    exclude_sensitive: bool = False,
 ) -> None:
     """Background worker: runs all 8 stages and writes result to task_store."""
     import io
@@ -346,7 +346,7 @@ async def run_all(
     metric_priority: str = Form(default="balanced"),
     domain: str = Form(default="general"),
     positive_label: str = Form(default=""),
-    exclude_sensitive: str = Form(default="true"),
+    exclude_sensitive: str = Form(default="false"),
     custom_model_file: UploadFile | None = None,
 ) -> dict[str, str]:
     """
