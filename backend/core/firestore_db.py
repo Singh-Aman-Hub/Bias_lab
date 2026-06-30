@@ -1,15 +1,17 @@
 """Firestore client singleton for BIAS LAB backend.
 
 Credential resolution order:
-  1. Individual FIREBASE_SA_* env vars (preferred — works on Render without
-     any sidecar JSON file).
-  2. Path pointed at by FIREBASE_ADMIN_KEY env var (default: firebase-admin.json
-     relative to the backend directory) — kept for local dev convenience.
+  1. FIREBASE_CREDENTIALS_B64 — the entire service-account JSON, base64-encoded.
+     Preferred for Render: one opaque string, no newline/quote mangling.
+     Generate with: base64 -i firebase-admin.json | tr -d '\\n'
+  2. Individual FIREBASE_SA_* env vars — fallback, kept for compatibility.
+  3. JSON file path (FIREBASE_ADMIN_KEY / firebase-admin.json) — local dev only.
 
 The service-account JSON must NOT be committed to git.
 """
 from __future__ import annotations
 
+import base64
 import json
 import os
 from pathlib import Path
@@ -23,22 +25,18 @@ _client = None
 
 
 def _build_credentials() -> credentials.Certificate:
-    """Return a Certificate credential.
+    """Return a Certificate credential using the best available source."""
 
-    Prefer the individual FIREBASE_SA_* env vars so no JSON file is required
-    on the server.  Fall back to the JSON file path for local development.
-    """
-    private_key = os.getenv("FIREBASE_SA_PRIVATE_KEY", "")
+    # ── Option 1: base64-encoded full JSON (safest for Render) ──────────────
+    b64 = os.getenv("FIREBASE_CREDENTIALS_B64", "").strip()
+    if b64:
+        sa_info = json.loads(base64.b64decode(b64).decode("utf-8"))
+        return credentials.Certificate(sa_info)
 
+    # ── Option 2: individual FIREBASE_SA_* env vars ──────────────────────────
+    private_key = os.getenv("FIREBASE_SA_PRIVATE_KEY", "").strip().strip('"').strip("'")
     if private_key:
-        # Strip surrounding quotes that get included when copying from a .env file.
-        # e.g. Render stores the value literally if pasted as: "-----BEGIN PRIVATE KEY-----\n..."
-        private_key = private_key.strip().strip('"').strip("'")
-
-        # Normalise \n: convert literal backslash-n sequences to real newlines.
-        # Safe to call even if the key already has real newlines (no-op then).
         private_key = private_key.replace("\\n", "\n")
-
         sa_info = {
             "type": os.environ["FIREBASE_SA_TYPE"],
             "project_id": os.environ["FIREBASE_SA_PROJECT_ID"],
@@ -54,7 +52,7 @@ def _build_credentials() -> credentials.Certificate:
         }
         return credentials.Certificate(sa_info)
 
-    # Fallback: load from JSON file (local dev)
+    # ── Option 3: JSON file path (local dev fallback) ────────────────────────
     configured = os.getenv("FIREBASE_ADMIN_KEY", _DEFAULT_KEY)
     p = Path(configured)
     if not p.is_absolute():
