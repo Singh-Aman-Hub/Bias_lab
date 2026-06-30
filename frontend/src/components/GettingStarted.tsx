@@ -19,22 +19,23 @@ interface Step {
  * first-time visitor is always one click from the right next move.
  */
 export default function GettingStarted() {
-  const { projectId, file, sensitiveCols, targetCol, pipelineResults } = useAppContext();
+  const { projectId, projects, file, sensitiveCols, targetCol, pipelineResults } = useAppContext();
   const navigate = useNavigate();
 
   const configured = sensitiveCols.length > 0 && !!targetCol;
+  const hasProject = !!projects.find(p => String(p.id) === String(projectId));
 
   const steps: Step[] = [
     {
       title: 'Create a project',
       detail: 'A project holds one model and its audit history.',
-      done: !!projectId,
+      done: hasProject,
       cta: 'New Project',
       hint: 'Open the project menu in the top bar, then “New Project”.',
     },
     {
       title: 'Add a dataset',
-      detail: 'Upload a CSV, or load a built-in benchmark (UCI Adult, COMPAS) in one click.',
+      detail: 'Upload a CSV, or load a built-in benchmark (UCI Adult, Hiring Decision Dataset) in one click.',
       done: !!file,
       to: '/workflow/step-1',
       cta: 'Upload data',

@@ -60,7 +60,7 @@ skills/
 backend/unbiased_ai.db
 
 # Generated data
-data/
+
 
 # Reports & design docs (board, presentation docs, tracking)
 presentation/

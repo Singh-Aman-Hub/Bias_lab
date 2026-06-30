@@ -224,7 +224,7 @@ export default function CreateProject() {
               {error && <div className="banner red" style={{ padding: '10px 14px', fontSize: '0.85rem' }}>{error}</div>}
               
               <button type="submit" className="btn btn-primary" style={{ marginTop: 12, height: 50, fontSize: '0.95rem' }} disabled={loading}>
-                {loading ? <Loader2 className="animate-spin" /> : 'Create Workspace'} <ChevronRight size={18} />
+                {loading && <Loader2 className="animate-spin" style={{ marginRight: 8 }} />} Create Workspace <ChevronRight size={18} />
               </button>
             </form>
           </motion.div>
@@ -281,7 +281,7 @@ export default function CreateProject() {
 
             <div style={{ display: 'flex', gap: 12, marginTop: 32 }}>
                <button onClick={handleUpload} className="btn btn-primary" style={{ flex: 1, height: 50 }} disabled={loading || !dataset}>
-                 {loading ? <Loader2 className="animate-spin" /> : 'Finalize Assets'} <ChevronRight size={18} />
+                 {loading && <Loader2 className="animate-spin" style={{ marginRight: 8 }} />} Finalize Assets <ChevronRight size={18} />
                </button>
                <button onClick={() => setStep(1)} className="btn btn-secondary" style={{ width: 100, height: 50 }} disabled={loading}>
                  Back

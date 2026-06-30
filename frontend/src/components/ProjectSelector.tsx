@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, Plus, LayoutGrid, Check, Wand2, Trash2 } from 'lucide-react';
+import { ChevronDown, Plus, LayoutGrid, Check, Wand2, Trash2, Loader } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { formApi, api } from '../api/client';
 
@@ -9,13 +9,16 @@ export default function ProjectSelector() {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDomain, setNewDomain] = useState('finance');
+  const [switchingTo, setSwitchingTo] = useState<string | null>(null);
 
   const currentProject = projects?.find(p => String(p.id) === String(projectId));
 
   const handleCreate = async () => {
     if (!newName) return;
+    setIsSubmitting(true);
     try {
       const fd = new FormData();
       fd.append('name', newName);
@@ -27,7 +30,9 @@ export default function ProjectSelector() {
       setNewName('');
       setIsOpen(false);
       navigate('/workflow/step-1');
-    } catch { /* ignore */ }
+    } catch { /* ignore */ } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDelete = async (e: React.MouseEvent, id: number | string) => {
@@ -41,6 +46,17 @@ export default function ProjectSelector() {
         navigate('/');
       }
     } catch { /* ignore */ }
+  };
+
+  const handleSwitchProject = (id: string) => {
+    setSwitchingTo(id);
+    // Yield to the event loop so the spinner renders before the heavy setProjectId React re-renders kick in
+    setTimeout(() => {
+      setProjectId(id);
+      setIsOpen(false);
+      navigate('/workflow/step-3');
+      setSwitchingTo(null);
+    }, 150);
   };
 
   return (
@@ -84,11 +100,15 @@ export default function ProjectSelector() {
                         marginBottom: 6, border: String(p.id) === String(projectId) ? '1px solid var(--accent)' : '1px solid transparent',
                         background: String(p.id) === String(projectId) ? 'rgba(52, 214, 196, 0.05)' : 'transparent'
                       }}
-                      onClick={() => { setProjectId(String(p.id)); setIsOpen(false); }}
+                      onClick={() => handleSwitchProject(String(p.id))}
                     >
                       <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{p.name}</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {String(p.id) === String(projectId) && <Check size={14} color="var(--accent)" />}
+                        {switchingTo === String(p.id) ? (
+                          <Loader size={14} color="var(--accent)" style={{ animation: 'spin 1.2s linear infinite' }} />
+                        ) : (
+                          String(p.id) === String(projectId) && <Check size={14} color="var(--accent)" />
+                        )}
                         <button 
                           className="btn btn-ghost" 
                           style={{ padding: 4, color: 'var(--text-secondary)' }}
@@ -108,13 +128,6 @@ export default function ProjectSelector() {
                 >
                   <Plus size={14} /> New Project
                 </button>
-                <button
-                  className="btn"
-                  style={{ width: '100%', fontSize: '0.8rem', gap: 6, marginTop: 8 }}
-                  onClick={() => { setIsOpen(false); navigate('/create-project'); }}
-                >
-                  <Wand2 size={14} /> Guided setup (upload + run)
-                </button>
               </>
             ) : (
               <div className="stack stack-md">
@@ -133,8 +146,11 @@ export default function ProjectSelector() {
                    <option value="justice">Justice</option>
                 </select>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn btn-primary" style={{ flex: 1, fontSize: '0.8rem' }} onClick={handleCreate}>Create</button>
-                  <button className="btn" style={{ fontSize: '0.8rem' }} onClick={() => setIsCreating(false)}>Cancel</button>
+                  <button className="btn btn-primary" style={{ flex: 1, fontSize: '0.8rem', gap: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={handleCreate} disabled={isSubmitting}>
+                    {isSubmitting && <Loader size={14} style={{ animation: 'spin 1.2s linear infinite' }} />}
+                    Create
+                  </button>
+                  <button className="btn" style={{ fontSize: '0.8rem' }} onClick={() => setIsCreating(false)} disabled={isSubmitting}>Cancel</button>
                 </div>
               </div>
             )}

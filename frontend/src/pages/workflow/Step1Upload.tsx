@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import { api } from '../../api/client';
 import { parseCsvHeader, splitCsvRows, validateCsvFile, validateCsvContent } from '../../utils/csv';
-import { ArrowRight, Database, LayoutGrid, AlertTriangle } from 'lucide-react';
+import { ArrowRight, Database, LayoutGrid, AlertTriangle, Info, Loader } from 'lucide-react';
 
 interface DemoDataset {
   name: string;
@@ -14,9 +14,9 @@ interface DemoDataset {
 }
 
 export default function Step1Upload() {
-  const { 
+  const {
     file, setFile, setSensitiveCols, setTargetCol, setDomain,
-    projectId, projects, advanceStep 
+    projectId, projects, advanceStep
   } = useAppContext();
 
   const [headers, setHeaders] = useState<string[]>([]);
@@ -25,12 +25,13 @@ export default function Step1Upload() {
   const [error, setError] = useState<string | null>(null);
   const [demoDatasets, setDemoDatasets] = useState<DemoDataset[]>([]);
   const [loadingDemo, setLoadingDemo] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     api.get('/datasets').then(res => {
       setDemoDatasets(res.data.datasets.filter((d: DemoDataset) => d.available));
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -116,62 +117,84 @@ export default function Step1Upload() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <Database size={18} style={{ color: 'var(--accent)' }} />
           <h3 className="section-title" style={{ margin: 0 }}>Quick-Start with Real Data</h3>
+          <div title="Datasets with high number of records may not be fully supported on the platform due to deployment resource limits for pipeline audit processing." style={{ cursor: 'help', display: 'flex', color: 'var(--text-secondary)' }}>
+            <Info size={16} />
+          </div>
         </div>
         <p className="helper" style={{ marginBottom: 16 }}>
           Load a built-in benchmark dataset to demo the platform immediately.
         </p>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           {demoDatasets.map(ds => (
-            <button
-              key={ds.name}
-              className="btn btn-secondary"
-              disabled={loadingDemo}
-              onClick={async () => {
-                setLoadingDemo(true);
-                try {
-                  const res = await fetch(`/api/datasets/download/${ds.name}`);
-                  const csv = await res.text();
-                  const blob = new Blob([csv], { type: 'text/csv' });
-                  const f = new File([blob], `${ds.name}.csv`, { type: 'text/csv' });
-                  setFile(f);
-                  setError(null);
-                  setRowCount(Math.max(splitCsvRows(csv).length - 1, 0));
-                  setHeaders(parseCsvHeader(csv));
-
-                  const targetCol = res.headers.get('X-Dataset-Target-Col') || '';
-                  const sensitiveCols = (res.headers.get('X-Dataset-Sensitive-Cols') || '').split(',').filter(Boolean);
-                  const domain = res.headers.get('X-Dataset-Domain') || 'general';
-
-                  setTargetCol(targetCol);
-                  setSensitiveCols(sensitiveCols);
-                  setDomain(domain);
-                } catch (e) {
-                  console.error('Failed to load demo dataset', e);
-                } finally {
-                  setLoadingDemo(false);
-                }
-              }}
-              style={{ flex: 1, minWidth: 200, textAlign: 'left', padding: 16 }}
-            >
+            <div key={ds.name} style={{ flex: 1, minWidth: 300, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: 16, display: 'flex', flexDirection: 'column' }}>
               <strong>{ds.display_name}</strong>
-              <p className="helper" style={{ margin: '4px 0 0' }}>
-                {ds.rows.toLocaleString()} rows &middot; {ds.description.slice(0, 80)}...
+              <p className="helper" style={{ margin: '4px 0 16px', flex: 1 }}>
+                {ds.rows.toLocaleString()} rows &middot; {ds.description}
               </p>
-            </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-secondary"
+                  disabled={loadingDemo}
+                  onClick={async () => {
+                    setLoadingDemo(true);
+                    try {
+                      const res = await fetch(`/api/datasets/download/${ds.name}`);
+                      const csv = await res.text();
+                      const blob = new Blob([csv], { type: 'text/csv' });
+                      const f = new File([blob], `${ds.name}.csv`, { type: 'text/csv' });
+                      setFile(f);
+                      setError(null);
+                      setRowCount(Math.max(splitCsvRows(csv).length - 1, 0));
+                      setHeaders(parseCsvHeader(csv));
+
+                      const targetCol = res.headers.get('X-Dataset-Target-Col') || '';
+                      const sensitiveCols = (res.headers.get('X-Dataset-Sensitive-Cols') || '').split(',').filter(Boolean);
+                      const domain = res.headers.get('X-Dataset-Domain') || 'general';
+
+                      setTargetCol(targetCol);
+                      setSensitiveCols(sensitiveCols);
+                      setDomain(domain);
+                    } catch (e) {
+                      console.error('Failed to load demo dataset', e);
+                    } finally {
+                      setLoadingDemo(false);
+                    }
+                  }}
+                  style={{ flex: 1, justifyContent: 'center' }}
+                >
+                  Select for Analysis
+                </button>
+                <a
+                  href={`/api/datasets/download/${ds.name}`}
+                  download={`${ds.name}.csv`}
+                  className="btn btn-secondary"
+                  style={{ flex: 1, justifyContent: 'center', textDecoration: 'none', display: 'flex', alignItems: 'center' }}
+                >
+                  Download CSV
+                </a>
+              </div>
+            </div>
           ))}
         </div>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button 
-          className="btn btn-primary" 
+        <button
+          className="btn btn-primary"
           onClick={async () => {
-            await advanceStep(2);
-            navigate('/workflow/step-2');
-          }} 
-          disabled={!file}
+            setIsNavigating(true);
+            try {
+              await advanceStep(2);
+              navigate('/workflow/step-2');
+            } finally {
+              setIsNavigating(false);
+            }
+          }}
+          disabled={!file || isNavigating}
         >
-          Next: Configure Attributes <ArrowRight size={16} />
+          {isNavigating && <Loader size={16} style={{ animation: 'spin 1.2s linear infinite' }} />}
+          Next: Configure Attributes
+          {!isNavigating && <ArrowRight size={16} />}
         </button>
       </div>
     </div>

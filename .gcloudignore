@@ -1,0 +1,10 @@
+.gcloudignore
+.git
+.gitignore
+**/node_modules/
+**/__pycache__/
+**/.venv/
+**/venv/
+frontend/dist/
+backend/unbiased_ai.db
+!.env

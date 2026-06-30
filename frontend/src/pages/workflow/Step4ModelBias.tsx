@@ -7,7 +7,7 @@ import DisparityBar from '../../components/DisparityBar';
 import ChatHelpButton from '../../components/ChatHelpButton';
 import SensitiveAttrSummaryCard from '../../components/SensitiveAttrSummaryCard';
 import { useAppContext } from '../../context/AppContext';
-import { ArrowRight, ArrowLeft, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import { ArrowRight, ArrowLeft, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, RefreshCw, Loader } from 'lucide-react';
 import { scoreColor } from '../../utils/score';
 import { api } from '../../api/client';
 import type { SensitiveAttrMeta } from '../../types';
@@ -25,6 +25,7 @@ export default function Step4ModelBias() {
   const navigate = useNavigate();
 
   const [binningStrategy, setBinningStrategy] = useState<BinningStrategy>('auto');
+  const [isNavigating, setIsNavigating] = useState(false);
   const [regroupLoading, setRegroupLoading] = useState(false);
   const [regroupError, setRegroupError] = useState<string | null>(null);
 
@@ -384,10 +385,17 @@ export default function Step4ModelBias() {
           <ArrowLeft size={16} /> Back
         </button>
         <button className="btn btn-primary" onClick={async () => {
-          await advanceStep(5);
-          navigate('/workflow/step-5');
-        }}>
-          Next: Explore Explanations <ArrowRight size={16} />
+          setIsNavigating(true);
+          try {
+            await advanceStep(5);
+            navigate('/workflow/step-5');
+          } finally {
+            setIsNavigating(false);
+          }
+        }} disabled={isNavigating}>
+          {isNavigating && <Loader size={16} style={{ animation: 'spin 1.2s linear infinite' }} />}
+          Next: Explore Explanations
+          {!isNavigating && <ArrowRight size={16} />}
         </button>
       </div>
 

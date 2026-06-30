@@ -7,6 +7,7 @@ from fastapi import APIRouter, Form
 from core.pattern_discovery import discover_intersectional_patterns
 from core.dataset_loader import load_dataset_from_path
 from core import store
+from core.llm_client import generate_with_fallback, APIKeyExhaustedError
 
 router = APIRouter(prefix="/patterns", tags=["patterns"])
 
@@ -38,10 +39,6 @@ async def discover_patterns(project_id: int = Form(...)) -> dict[str, Any]:
 
 @router.post("/explain")
 async def explain_pattern(pattern_description: str = Form(...), affected_records: int = Form(...)) -> dict[str, str]:
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return {"explanation": "GEMINI_API_KEY is missing. Cannot generate explanation."}
-
     prompt = f"""You are an AI fairness expert. A bias detection system found a demographic pattern with high disparity:
 Pattern: {pattern_description}
 Affected Records: {affected_records}
@@ -49,12 +46,16 @@ Affected Records: {affected_records}
 Explain why dropping these records could be harmful (e.g., loss of representation) or when it might be acceptable. Provide a recommendation on whether to exclude these records from training. Keep it to 2-3 short, plain English paragraphs."""
 
     try:
-        from google import genai
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
-            contents=prompt,
-        )
-        return {"explanation": response.text}
+        explanation = generate_with_fallback(prompt)
+        return {"explanation": explanation}
+    except ValueError:
+        return {"explanation": "GEMINI_API_KEY is missing. Cannot generate explanation."}
+    except ImportError:
+        return {"explanation": "Failed to generate explanation: google-genai is not installed."}
+    except APIKeyExhaustedError as exc:
+        error_str = str(exc)
+        if "429" in error_str or "quota" in error_str.lower():
+            return {"explanation": "Failed to generate explanation: API is currently rate-limited (all keys exhausted)."}
+        return {"explanation": f"Failed to generate explanation (auth error): {error_str}"}
     except Exception as exc:
         return {"explanation": f"Failed to generate explanation: {str(exc)}"}

@@ -52,7 +52,7 @@ export default function Trust() {
         >
           <p className="landing-testimonial-text">
             Validated against public fairness benchmarks — the UCI Adult Income dataset
-            (48,842 records) and the ProPublica COMPAS recidivism dataset (7,214 records) —
+            (1,680 records) and the Hiring Decision Dataset (1,500 records) —
             so you can reproduce every result.
           </p>
           <div className="landing-testimonial-author">

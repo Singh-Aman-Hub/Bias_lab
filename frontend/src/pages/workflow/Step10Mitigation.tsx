@@ -250,7 +250,7 @@ export default function Step10Mitigation() {
                   disabled={mitigating || !Object.values(selectedPatterns).some(v => v)}
                   className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold flex items-center gap-2 hover:bg-indigo-700 transition-colors disabled:opacity-50"
                 >
-                  {mitigating ? <><Loader2 size={20} className="animate-spin" /> Mitigating...</> : 'Commit Mitigations'}
+                  {mitigating && <Loader2 size={20} className="animate-spin" style={{ marginRight: 8 }} />} Commit Mitigations
                 </button>
               </div>
             </div>

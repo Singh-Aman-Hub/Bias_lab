@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
-import { ArrowRight, ArrowLeft, AlertTriangle, Shield, Activity, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowRight, ArrowLeft, AlertTriangle, Shield, Activity, ChevronDown, ChevronUp, Loader } from 'lucide-react';
 import ExplainThis from '../../components/ExplainThis';
 import ChatHelpButton from '../../components/ChatHelpButton';
 import { buildExplainItems } from '../../utils/explainItems';
@@ -301,6 +301,7 @@ function PatternCard({
 export default function Step5Explanations() {
   const { pipelineResults, explainResult, explainSummary, domain, advanceStep } = useAppContext();
   const navigate = useNavigate();
+  const [isNavigating, setIsNavigating] = useState(false);
 
   const patterns = useMemo(
     () => (pipelineResults?.explanation_patterns ?? []) as ExplanationPattern[],
@@ -363,8 +364,17 @@ export default function Step5Explanations() {
             <button className="btn" onClick={() => navigate('/workflow/step-4')}>
               <ArrowLeft size={16} /> Back
             </button>
-            <button className="btn btn-primary" onClick={async () => { await advanceStep(6); navigate('/workflow/step-6'); }}>
-              Next: Run Counterfactuals <ArrowRight size={16} />
+            <button className="btn btn-primary" onClick={async () => { 
+              setIsNavigating(true);
+              try {
+                await advanceStep(6); navigate('/workflow/step-6'); 
+              } finally {
+                setIsNavigating(false);
+              }
+            }} disabled={isNavigating}>
+              {isNavigating && <Loader size={16} style={{ animation: 'spin 1.2s linear infinite' }} />}
+              Next: Run Counterfactuals
+              {!isNavigating && <ArrowRight size={16} />}
             </button>
           </div>
         </div>
@@ -476,8 +486,17 @@ export default function Step5Explanations() {
         <button className="btn" onClick={() => navigate('/workflow/step-4')}>
           <ArrowLeft size={16} /> Back
         </button>
-        <button className="btn btn-primary" onClick={async () => { await advanceStep(6); navigate('/workflow/step-6'); }}>
-          Next: Run Counterfactuals <ArrowRight size={16} />
+        <button className="btn btn-primary" onClick={async () => { 
+          setIsNavigating(true);
+          try {
+            await advanceStep(6); navigate('/workflow/step-6'); 
+          } finally {
+            setIsNavigating(false);
+          }
+        }} disabled={isNavigating}>
+          {isNavigating && <Loader size={16} style={{ animation: 'spin 1.2s linear infinite' }} />}
+          Next: Run Counterfactuals
+          {!isNavigating && <ArrowRight size={16} />}
         </button>
       </div>
     </div>

@@ -11,12 +11,13 @@ import {
 } from 'lucide-react';
 import { api } from '../api/client';
 import { scoreColor } from '../utils/score';
-import GettingStarted from '../components/GettingStarted';
+
 import ReportDownloader from '../components/ReportDownloader';
 import ChatHelpButton from '../components/ChatHelpButton';
 
 export default function Dashboard() {
-  const { pipelineResults, projectId } = useAppContext();
+  const { pipelineResults, projectId, projects } = useAppContext();
+  const hasProject = !!projects.find(p => String(p.id) === String(projectId));
   const [comparisons, setComparisons] = useState<Array<{ run_id: number; fairness_score: number; accuracy: number; decision: string; timestamp: string }>>([]);
   const navigate = useNavigate();
 
@@ -33,11 +34,11 @@ export default function Dashboard() {
            <div className="kicker" style={{ marginBottom: 16 }}>Intelligence Workspace</div>
            <h1 className="page-title" style={{ fontSize: '3.5rem', marginBottom: 20 }}>Forensic AI Hub</h1>
            <p className="helper" style={{ maxWidth: 600, margin: '0 auto', fontSize: '1.1rem', lineHeight: 1.6 }}>
-             {projectId ? 'Your project is ready. Upload a dataset to start the audit sequence.' : 'Select or create a project from the top menu to begin your forensic audit.'}
+             {hasProject ? 'Your project is ready. Upload a dataset to start the audit sequence.' : 'Select or create a project from the top menu to begin your forensic audit.'}
            </p>
            
            <div style={{ marginTop: 40, display: 'flex', justifyContent: 'center', gap: 16 }}>
-             {projectId ? (
+             {hasProject ? (
                <button className="btn btn-primary" style={{ padding: '14px 40px', fontSize: '1rem' }} onClick={() => navigate('/workflow/step-1')}>
                  Start Audit Sequence
                </button>
@@ -52,11 +53,7 @@ export default function Dashboard() {
            </div>
          </div>
 
-         <div style={{ marginBottom: 48 }}>
-           <GettingStarted />
-         </div>
-
-         <div className="grid-3" style={{ opacity: 0.8 }}>
+         <div className="grid-3" style={{ opacity: 0.8, marginTop: 48 }}>
             <div className="card" style={{ padding: 32, textAlign: 'left' }}>
                <div className="workflow-brand-badge" style={{ marginBottom: 20, width: 48, height: 48 }}><Search size={24} /></div>
                <h3 style={{ fontSize: '1.1rem', marginBottom: 12 }}>Bias Discovery</h3>

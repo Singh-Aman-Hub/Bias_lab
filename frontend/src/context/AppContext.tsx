@@ -146,7 +146,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const items = buildExplainItems(result, domain);
       if (!items.length) { setExplanationsReady(true); return; }
-      const res = await api.post('/narrative/explain-batch', { items });
+      const res = await api.post('/narrative/explain-batch', { items, project_id: projectId });
       const map = (res.data as { explanations?: Record<string, any> })?.explanations;
       if (map && typeof map === 'object') {
         setExplanationCache((prev) => ({ ...prev, ...map }));
@@ -228,10 +228,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return new Promise((resolve, reject) => {
       const startTime = Date.now();
       const interval = setInterval(async () => {
-        // 5 minute overall timeout for the whole analysis
-        if (Date.now() - startTime > 300_000) {
+        // 15 minute overall timeout for the whole analysis
+        if (Date.now() - startTime > 900_000) {
           clearInterval(interval);
-          reject(new Error('Analysis timed out after 5 minutes'));
+          reject(new Error('Analysis timed out after 15 minutes'));
           return;
         }
         try {
@@ -313,6 +313,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Pre-fetch every page's plain-English explanation in one batch call (fire-and-forget).
     // Guard so re-loading the same result (e.g. project auto-load) doesn't re-spend quota.
     const r = result as Record<string, unknown>;
+    
+    // Check if the backend already cached the explanations in the database
+    if (r.explain_batch_cache && typeof r.explain_batch_cache === 'object') {
+      setExplanationCache(r.explain_batch_cache as Record<string, any>);
+      setExplanationsReady(true);
+      return;
+    }
+
     const sig = JSON.stringify({ s: r.scores, m: r.model_used, f: r.fairness_score });
     if (sig !== lastPrefetchSig.current) {
       lastPrefetchSig.current = sig;

@@ -17,6 +17,9 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 # Copy backend code
 COPY backend ./backend
 
+# Copy data folder containing built-in datasets
+COPY data ./data
+
 # Copy built frontend from Stage 1
 COPY --from=frontend-build /frontend/dist ./frontend/dist
 
@@ -28,4 +31,4 @@ ENV PORT 8080
 ENV CORS_ALLOW_ALL 1
 
 # Start the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}

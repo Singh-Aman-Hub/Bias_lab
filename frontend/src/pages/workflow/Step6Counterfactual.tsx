@@ -10,7 +10,7 @@ import { api } from '../../api/client';
 import { buildExplainItems } from '../../utils/explainItems';
 import {
   ArrowRight, ArrowLeft, AlertTriangle, AlertCircle,
-  Info, ChevronDown, ChevronUp,
+  Info, ChevronDown, ChevronUp, Loader
 } from 'lucide-react';
 import type { CounterfactualResult, CFBreakdownEntry } from '../../types';
 
@@ -101,6 +101,7 @@ export default function Step6Counterfactual() {
   const [showAllPairs, setShowAllPairs] = useState(false);
   const { toast, showToast, clear } = useToast();
   const navigate = useNavigate();
+  const [isNavigating, setIsNavigating] = useState(false);
 
   // ── Derive result ─────────────────────────────────────────────────────────
   const cfResult: CounterfactualResult | null =
@@ -524,8 +525,17 @@ export default function Step6Counterfactual() {
       {/* ── Navigation ───────────────────────────────────────────────── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 32 }}>
         <button className="btn btn-secondary" onClick={() => navigate('/workflow/step-5')}><ArrowLeft size={16} /> Back</button>
-        <button className="btn btn-primary" onClick={async () => { await advanceStep(7); navigate('/workflow/step-7'); }}>
-          Continue to Stress Test <ArrowRight size={16} />
+        <button className="btn btn-primary" onClick={async () => { 
+          setIsNavigating(true);
+          try {
+            await advanceStep(7); navigate('/workflow/step-7'); 
+          } finally {
+            setIsNavigating(false);
+          }
+        }} disabled={isNavigating}>
+          {isNavigating && <Loader size={16} style={{ animation: 'spin 1.2s linear infinite' }} />}
+          Continue to Stress Test
+          {!isNavigating && <ArrowRight size={16} />}
         </button>
       </div>
 

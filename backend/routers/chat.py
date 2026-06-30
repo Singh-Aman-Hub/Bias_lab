@@ -8,6 +8,8 @@ from typing import Any
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from core.llm_client import generate_with_fallback, APIKeyExhaustedError
+
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 class ChatMessage(BaseModel):
@@ -49,22 +51,19 @@ CONVERSATION HISTORY:
 
 @router.post("")
 async def chat_with_assistant(req: ChatRequest) -> dict[str, str]:
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return {"response": "Error: GEMINI_API_KEY is missing on the server. Please configure it to enable the Chatbot.", "status": "api_key_missing"}
-
     prompt = _build_chat_prompt(req)
     
     try:
-        from google import genai
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
-            contents=prompt,
-        )
-        return {"response": response.text, "status": "ok"}
+        response_text = generate_with_fallback(prompt)
+        return {"response": response_text, "status": "ok"}
+    except ValueError:
+        return {"response": "Error: GEMINI_API_KEY is missing on the server. Please configure it to enable the Chatbot.", "status": "api_key_missing"}
     except ImportError:
         return {"response": "Error: google-genai package is not installed.", "status": "import_error"}
-    except Exception as exc:
+    except APIKeyExhaustedError as exc:
         error_str = str(exc)
-        return {"response": f"Error: {error_str}", "status": "error"}
+        if "429" in error_str or "quota" in error_str.lower():
+            return {"response": "Error: The chat service is currently rate-limited (all keys exhausted). Please wait a moment and try again.", "status": "rate_limited"}
+        return {"response": f"Error: Authentication failed. {error_str}", "status": "error"}
+    except Exception as exc:
+        return {"response": f"Error: {str(exc)}", "status": "error"}

@@ -41,6 +41,7 @@ export default function Step3DataAudit() {
   }, [audit]);
 
   const [activeCol, setActiveCol] = useState<string>('');
+  const [isNavigating, setIsNavigating] = useState(false);
   const currentCol = activeCol || sensitiveCols[0] || '';
 
   // Table sorting state
@@ -377,10 +378,17 @@ export default function Step3DataAudit() {
           <ArrowLeft size={16} /> Back
         </button>
         <button className="btn btn-primary" onClick={async () => {
-          await advanceStep(4);
-          navigate('/workflow/step-4');
-        }}>
-          Next: Analyze Model Bias <ArrowRight size={16} />
+          setIsNavigating(true);
+          try {
+            await advanceStep(4);
+            navigate('/workflow/step-4');
+          } finally {
+            setIsNavigating(false);
+          }
+        }} disabled={isNavigating}>
+          {isNavigating && <Loader size={16} style={{ animation: 'spin 1.2s linear infinite' }} />}
+          Next: Analyze Model Bias
+          {!isNavigating && <ArrowRight size={16} />}
         </button>
       </div>
     </div>

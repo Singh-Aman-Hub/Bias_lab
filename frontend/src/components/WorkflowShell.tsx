@@ -33,7 +33,7 @@ const STEPS = [
 export default function WorkflowShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const { maxStep, latestMitigationRunId } = useAppContext();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
 
   const isDashboard = location.pathname === '/dashboard';
   // Fallback to step 1 if not found, unless we are explicitly on the dashboard
@@ -151,14 +151,21 @@ export default function WorkflowShell({ children }: { children: React.ReactNode 
             
             <div style={{ width: 1, height: 24, background: 'var(--border)', opacity: 0.3 }} />
             
-            <button 
-              className="btn btn-ghost" 
-              onClick={() => logout()}
-              title="Sign Out"
-              style={{ color: 'var(--text-secondary)', padding: '8px' }}
-            >
-              <LogOut size={18} />
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {user && (
+                <div style={{ color: 'var(--text-primary)', fontSize: '0.85rem', fontWeight: 500 }}>
+                  Hello, {user.displayName || user.email?.split('@')[0] || 'User'}
+                </div>
+              )}
+              <button 
+                className="btn btn-ghost" 
+                onClick={() => logout()}
+                title="Sign Out"
+                style={{ color: 'var(--text-secondary)', padding: '8px' }}
+              >
+                <LogOut size={18} />
+              </button>
+            </div>
           </div>
         </header>
 

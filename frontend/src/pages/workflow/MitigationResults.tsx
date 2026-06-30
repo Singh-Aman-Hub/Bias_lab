@@ -4,6 +4,8 @@ import { ArrowLeft, Download, CheckCircle, TrendingUp, TrendingDown, Minus, Load
 import { api } from '../../api/client';
 import ChatHelpButton from '../../components/ChatHelpButton';
 
+const explanationCache = new Map<string, any>();
+
 export default function MitigationResults() {
   const { runId } = useParams();
   const [searchParams] = useSearchParams();
@@ -21,19 +23,19 @@ export default function MitigationResults() {
     if (!runId) return;
 
     let intervalId: any;
+    let isFetching = false;
 
     const pollStatus = async () => {
       try {
         if (!taskId) {
-          // If no taskId, assume we just want the result
-          fetchResult();
+          if (!isFetching) { isFetching = true; fetchResult(); }
           return;
         }
 
         const res = await api.get(`/mitigation/status/${taskId}`);
         if (res.data.status === 'completed') {
           clearInterval(intervalId);
-          fetchResult();
+          if (!isFetching) { isFetching = true; fetchResult(); }
         } else if (res.data.status === 'failed' || res.data.status === 'error') {
           clearInterval(intervalId);
           setError(res.data.message || 'Sandbox fix failed during audit rerun.');
@@ -63,7 +65,7 @@ export default function MitigationResults() {
       intervalId = setInterval(pollStatus, 3000);
       pollStatus(); // initial check
     } else {
-      fetchResult();
+      if (!isFetching) { isFetching = true; fetchResult(); }
     }
 
     return () => {
@@ -72,6 +74,12 @@ export default function MitigationResults() {
   }, [runId, taskId]);
 
   const fetchExplanation = async (resultData: any) => {
+    const runKey = String(resultData.mitigation_run_id);
+    if (explanationCache.has(runKey)) {
+      setLlmExplanation(explanationCache.get(runKey));
+      return;
+    }
+
     setLlmLoading(true);
     try {
       const res = await api.post('/narrative/explain-mitigation', {
@@ -82,6 +90,7 @@ export default function MitigationResults() {
         mitigated_summary: resultData.mitigated_summary
       });
       if (res.data.status === 'ok' && res.data.mitigation_results && Object.keys(res.data.mitigation_results).length > 0) {
+        explanationCache.set(runKey, res.data.mitigation_results);
         setLlmExplanation(res.data.mitigation_results);
       } else {
         throw new Error("Empty or failed LLM response");
@@ -105,13 +114,15 @@ export default function MitigationResults() {
           accText += " There is a notable trade-off between the fairness gains and model accuracy.";
       }
       
-      setLlmExplanation({
+      const fallbackExp = {
           summary: summaryText,
           fairness_change_explanation: `The fairness score went from ${o.fairness_score.toFixed(1)} to ${m.fairness_score.toFixed(1)}. Demographic parity gap changed from ${o.demographic_parity_gap.toFixed(3)} to ${m.demographic_parity_gap.toFixed(3)}.`,
           accuracy_tradeoff_explanation: accText,
           remaining_risks: m.fairness_score < 80 ? "The fairness score remains below optimal levels." : "No critical fairness risks identified.",
           recommended_next_steps: "Review the dataset changes and consider deploying the mitigated dataset if the trade-offs are acceptable."
-      });
+      };
+      explanationCache.set(runKey, fallbackExp);
+      setLlmExplanation(fallbackExp);
     } finally {
       setLlmLoading(false);
     }

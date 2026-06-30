@@ -34,7 +34,7 @@ export default function Footer() {
             <div className="landing-footer-col">
               <h4>Benchmarks</h4>
               <a href="https://archive.ics.uci.edu/dataset/2/adult" target="_blank" rel="noopener noreferrer">UCI Adult Income</a>
-              <a href="https://github.com/propublica/compas-analysis" target="_blank" rel="noopener noreferrer">ProPublica COMPAS</a>
+              <span>Hiring Decision Dataset</span>
             </div>
           </div>
         </div>

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import { formApi } from '../../api/client';
 import { parseCsvHeader, parseCsvLine } from '../../utils/csv';
-import { ArrowRight, ArrowLeft, AlertTriangle, Lightbulb } from 'lucide-react';
+import { ArrowRight, ArrowLeft, AlertTriangle, Lightbulb, Loader } from 'lucide-react';
 
 // Plan item 10: Auto-suggest sensitive columns from known list
 const SENSITIVE_KEYWORDS = ['gender', 'sex', 'race', 'ethnicity', 'caste', 'religion', 'age', 'disability', 'region', 'zipcode', 'zip', 'nationality', 'citizenship', 'marital', 'pregnancy', 'language', 'color', 'colour', 'tribe', 'class', 'income'];
@@ -32,6 +32,7 @@ export default function Step2Config() {
   const [localError, setLocalError] = useState<string | null>(null);
   const linesRef = useRef<string[]>([]);
   const navigate = useNavigate();
+  const [isNavigating, setIsNavigating] = useState(false);
 
   useEffect(() => {
     if (!file) {
@@ -89,6 +90,7 @@ export default function Step2Config() {
       return;
     }
 
+    setIsNavigating(true);
     // Persist config — catch 404 gracefully
     try {
       const fd = new FormData();
@@ -101,10 +103,12 @@ export default function Step2Config() {
       console.warn('Could not persist config, continuing anyway:', configErr);
     }
 
-    // Fire-and-forget — do NOT await. Navigate to step-3 immediately so the
-    // AnalysisProgressOverlay renders on top while the backend runs in the background.
-    runFullAnalysis();
-    navigate('/workflow/step-3');
+    try {
+      runFullAnalysis();
+      navigate('/workflow/step-3');
+    } finally {
+      setIsNavigating(false);
+    }
   };
 
 
@@ -400,9 +404,11 @@ export default function Step2Config() {
         <button
           className="btn btn-primary"
           onClick={handleStartAnalysis}
-          disabled={!file || isNonBinaryTarget || (modelType === 'api' && (!apiUrl || !requestFormat))}
+          disabled={!file || isNonBinaryTarget || (modelType === 'api' && (!apiUrl || !requestFormat)) || isNavigating}
         >
-          Start Full Analysis <ArrowRight size={16} />
+          {isNavigating && <Loader size={16} style={{ animation: 'spin 1.2s linear infinite' }} />}
+          Start Full Analysis
+          {!isNavigating && <ArrowRight size={16} />}
         </button>
       </div>
     </div>

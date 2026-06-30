@@ -7,7 +7,7 @@ import ScanningSkeleton from '../../components/animations/ScanningSkeleton';
 import ExplainThis from '../../components/ExplainThis';
 import ChatHelpButton from '../../components/ChatHelpButton';
 import { buildExplainItems } from '../../utils/explainItems';
-import { ArrowRight, ArrowLeft } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Loader } from 'lucide-react';
 import type { CustomScenario } from '../../types';
 
 export default function Step7StressTest() {
@@ -19,6 +19,7 @@ export default function Step7StressTest() {
   );
   const [customScenarios, setCustomScenarios] = useState<CustomScenario[]>([]);
   const navigate = useNavigate();
+  const [isNavigating, setIsNavigating] = useState(false);
   const [newScenario, setNewScenario] = useState({
     name: '',
     type: 'undersample',
@@ -252,10 +253,17 @@ export default function Step7StressTest() {
           <ArrowLeft size={16} /> Back
         </button>
         <button className="btn btn-primary" onClick={async () => {
-          await advanceStep(8);
-          navigate('/workflow/step-8');
-        }}>
-          Continue to Sandbox Fixes <ArrowRight size={16} />
+          setIsNavigating(true);
+          try {
+            await advanceStep(8);
+            navigate('/workflow/step-8');
+          } finally {
+            setIsNavigating(false);
+          }
+        }} disabled={isNavigating}>
+          {isNavigating && <Loader size={16} style={{ animation: 'spin 1.2s linear infinite' }} />}
+          Continue to Sandbox Fixes
+          {!isNavigating && <ArrowRight size={16} />}
         </button>
       </div>
     </div>

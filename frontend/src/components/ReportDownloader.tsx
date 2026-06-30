@@ -55,8 +55,9 @@ export default function ReportDownloader({ targetId = "dashboard-content" }: { t
       disabled={isGenerating}
       className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
     >
-      {isGenerating ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
-      {isGenerating ? "Generating PDF..." : "Export PDF"}
+      {isGenerating && <Loader2 size={18} className="animate-spin" />}
+      {!isGenerating && <Download size={18} />}
+      Export PDF
     </button>
   );
 }
