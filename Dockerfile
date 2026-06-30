@@ -4,6 +4,7 @@ WORKDIR /frontend
 COPY frontend/package*.json ./
 RUN npm install --legacy-peer-deps
 COPY frontend/ .
+# Vite automatically reads .env.production during `npm run build`
 RUN npm run build
 
 # Stage 2: Backend and Final Image
@@ -26,9 +27,8 @@ COPY --from=frontend-build /frontend/dist ./frontend/dist
 # Set working directory to backend to run the app
 WORKDIR /app/backend
 
-# Environment variables
-ENV PORT 8080
-ENV CORS_ALLOW_ALL 1
+# Default runtime environment variables (overridden by Render's dashboard)
+ENV PORT=8080
 
 # Start the application
 CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}
