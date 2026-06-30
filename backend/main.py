@@ -4,15 +4,11 @@ import os
 import warnings
 from pathlib import Path
 
-# Load .env from backend/ directory if it exists (for local dev)
+# Load .env from backend/ directory if it exists (for local dev).
+# python-dotenv correctly handles quoted values and multi-line private keys.
+from dotenv import load_dotenv
 _env_path = Path(__file__).resolve().parent / ".env"
-if _env_path.exists():
-    with open(_env_path) as _f:
-        for _line in _f:
-            _line = _line.strip()
-            if _line and not _line.startswith("#") and "=" in _line:
-                _k, _v = _line.split("=", 1)
-                os.environ.setdefault(_k.strip(), _v.strip())
+load_dotenv(_env_path, override=False)  # override=False keeps real env vars (Render) intact
 
 # Suppress Pydantic v2 protected namespace warnings for fields like model_path, model_file
 # in schemas and FastAPI endpoint parameters before any modules are imported.
@@ -72,12 +68,15 @@ app.include_router(user.router, prefix="/api")       # auth declared per-endpoin
 
 @app.on_event("startup")
 def startup_seed() -> None:
-    # Warm Firestore connection on startup
+    # Warm Firestore connection on startup — surface errors clearly in logs
+    import logging
+    import traceback
+    logger = logging.getLogger(__name__)
     try:
         get_client()
+        logger.info("Firestore connection established successfully.")
     except Exception as exc:
-        import logging
-        logging.getLogger(__name__).warning("Firestore init failed at startup: %s", exc)
+        logger.error("Firestore init failed at startup:\n%s", traceback.format_exc())
 
 
 @app.get("/health")
